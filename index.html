@@ -218,7 +218,7 @@
   async function fetchSales(from, to) {
     const { data, error } = await db
       .from("sales")
-      .select("id, sold_at, total_pence, method, refund_reason, voided, shops(name), sale_lines(line_no, department, amount_pence)")
+      .select("id, sold_at, total_pence, method, cash_pence, card_pence, refund_reason, voided, shops(name), sale_lines(line_no, department, amount_pence)")
       .gte("sold_at", from.toISOString())
       .lt("sold_at", to.toISOString())
       .order("sold_at", { ascending: false });
@@ -301,8 +301,9 @@
     const lines = counted.flatMap((s) => s.sale_lines);
 
     $("total").textContent = pounds(total);
-    $("cash").textContent = pounds(sum(counted.filter((s) => s.method === "CASH")));
-    $("card").textContent = pounds(sum(counted.filter((s) => s.method === "CARD")));
+    // Split sales count their cash part as cash and their card part as card.
+    $("cash").textContent = pounds(counted.reduce((t, s) => t + s.cash_pence, 0));
+    $("card").textContent = pounds(counted.reduce((t, s) => t + s.card_pence, 0));
     $("count").textContent = counted.filter((s) => s.sale_lines.some((l) => l.amount_pence > 0)).length;
     $("refunds").textContent = pounds(-lines.filter((l) => l.amount_pence < 0).reduce((t, l) => t + l.amount_pence, 0));
     $("paidOut").textContent = pounds(liveEvents.filter((e) => e.type === "PAID_OUT").reduce((t, e) => t + e.amount_pence, 0));
@@ -395,7 +396,9 @@
     const refund = s.total_pence < 0;
     const lines = [...s.sale_lines].sort((a, b) => a.line_no - b.line_no)
       .map((l) => `${escapeHtml(l.department)} ${pounds(l.amount_pence)}`).join(" · ");
-    const method = s.method === "CASH" ? "Cash" : "Card";
+    const method = s.method === "CASH" ? "Cash"
+      : s.method === "SPLIT" ? `Split: ${pounds(s.cash_pence)} cash + ${pounds(s.card_pence)} card`
+      : "Card";
     return `<div class="sale ${s.voided ? "void" : ""} ${refund ? "refund" : ""}">
       <div class="time">${clock.format(new Date(s.sold_at))}</div>
       <div class="what">
