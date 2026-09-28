@@ -89,7 +89,7 @@
   .hours { display: flex; align-items: flex-end; gap: 4px; height: 110px; }
   .hour { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
   .hour .col { width: 100%; background: var(--bar); border-radius: 3px 3px 0 0; min-height: 2px; }
-  .hour .col.empty { background: var(--bar-soft); }
+  .hour .col.quiet { background: var(--bar-soft); }
   .hour span { font-size: 11px; color: var(--muted); margin-top: 4px; }
   .sale { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
   .sale:first-child { border-top: none; padding-top: 0; }
@@ -99,6 +99,13 @@
   .pill { display: inline-block; font-size: 12px; padding: 1px 7px; border-radius: 10px; background: var(--bar-soft); color: var(--ink); margin-right: 6px; }
   .pill.cash { background: color-mix(in srgb, var(--cash) 18%, transparent); color: var(--cash); }
   .sale.void .what, .sale.void .amount { text-decoration: line-through; color: var(--muted); }
+  .sale.refund .amount, .sale.refund .lines { color: var(--danger); }
+  .sale.drawer .what, .sale.drawer .amount { color: var(--muted); }
+  .pill.refund { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+  .close-row { display: flex; justify-content: space-between; padding: 4px 0; font-variant-numeric: tabular-nums; }
+  .verdict { font-weight: 700; }
+  .verdict.ok { color: var(--cash); }
+  .verdict.off { color: var(--danger); }
   .empty { text-align: center; padding: 24px 0; color: var(--muted); }
   #login { max-width: 380px; margin: 48px auto; padding: 0 16px; }
   #login h2 { text-transform: none; letter-spacing: 0; font-size: 20px; color: var(--ink); }
@@ -152,6 +159,14 @@
     <div class="card"><div class="stat-label">Cash</div><div class="stat-value" id="cash">£0.00</div></div>
     <div class="card"><div class="stat-label">Card</div><div class="stat-value" id="card">£0.00</div></div>
     <div class="card"><div class="stat-label">Sales</div><div class="stat-value" id="count">0</div></div>
+    <div class="card"><div class="stat-label">Refunds</div><div class="stat-value" id="refunds">£0.00</div></div>
+    <div class="card"><div class="stat-label">Paid out</div><div class="stat-value" id="paidOut">£0.00</div></div>
+    <div class="card"><div class="stat-label">No sales</div><div class="stat-value" id="noSales">0</div></div>
+  </div>
+
+  <div class="card">
+    <h2>End of day</h2>
+    <div id="close"></div>
   </div>
 
   <div class="card">
@@ -165,7 +180,7 @@
   </div>
 
   <div class="card">
-    <h2>Sales</h2>
+    <h2>Everything through the till</h2>
     <div id="sales"></div>
   </div>
 </main>
@@ -203,10 +218,33 @@
   async function fetchSales(from, to) {
     const { data, error } = await db
       .from("sales")
-      .select("id, sold_at, total_pence, method, voided, shops(name), sale_lines(line_no, department, amount_pence)")
+      .select("id, sold_at, total_pence, method, refund_reason, voided, shops(name), sale_lines(line_no, department, amount_pence)")
       .gte("sold_at", from.toISOString())
       .lt("sold_at", to.toISOString())
       .order("sold_at", { ascending: false });
+    if (error) throw error;
+    return data;
+  }
+
+  async function fetchDrawerEvents(from, to) {
+    const { data, error } = await db
+      .from("drawer_events")
+      .select("id, happened_at, type, amount_pence, reason, voided, shops(name)")
+      .gte("happened_at", from.toISOString())
+      .lt("happened_at", to.toISOString())
+      .order("happened_at", { ascending: false });
+    if (error) throw error;
+    return data;
+  }
+
+  const isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  async function fetchCloses(d) {
+    const { data, error } = await db
+      .from("day_closes")
+      .select("closed_at, float_pence, expected_cash_pence, counted_cash_pence, till_card_pence, machine_card_pence, shops(name)")
+      .eq("day", isoDate(d))
+      .order("closed_at", { ascending: false });
     if (error) throw error;
     return data;
   }
@@ -232,8 +270,13 @@
 
     renderDayNav(isToday, today);
     try {
-      const [sales, weekAgo] = await Promise.all([fetchSales(day, to), fetchTakings(weekAgoFrom, weekAgoTo)]);
-      render(sales, weekAgo, isToday);
+      const [sales, events, closes, weekAgo] = await Promise.all([
+        fetchSales(day, to),
+        fetchDrawerEvents(day, to),
+        fetchCloses(day),
+        fetchTakings(weekAgoFrom, weekAgoTo),
+      ]);
+      render(sales, events, closes, weekAgo, isToday);
     } catch (e) {
       $("sales").innerHTML = `<div class="empty">Couldn't load sales: ${escapeHtml(e.message)}</div>`;
     }
@@ -250,15 +293,20 @@
     $("nextDay").disabled = isToday;
   }
 
-  function render(sales, weekAgo, isToday) {
+  function render(sales, events, closes, weekAgo, isToday) {
     const counted = sales.filter((s) => !s.voided);
+    const liveEvents = events.filter((e) => !e.voided);
     const sum = (list) => list.reduce((t, s) => t + s.total_pence, 0);
     const total = sum(counted);
+    const lines = counted.flatMap((s) => s.sale_lines);
 
     $("total").textContent = pounds(total);
     $("cash").textContent = pounds(sum(counted.filter((s) => s.method === "CASH")));
     $("card").textContent = pounds(sum(counted.filter((s) => s.method === "CARD")));
-    $("count").textContent = counted.length;
+    $("count").textContent = counted.filter((s) => s.sale_lines.some((l) => l.amount_pence > 0)).length;
+    $("refunds").textContent = pounds(-lines.filter((l) => l.amount_pence < 0).reduce((t, l) => t + l.amount_pence, 0));
+    $("paidOut").textContent = pounds(liveEvents.filter((e) => e.type === "PAID_OUT").reduce((t, e) => t + e.amount_pence, 0));
+    $("noSales").textContent = liveEvents.filter((e) => e.type === "NO_SALE").length;
 
     const diff = total - weekAgo;
     const lastWeek = `last ${weekday.format(addDays(day, -7))}${isToday ? " by this time" : ""}`;
@@ -269,28 +317,56 @@
       : diff === 0 ? `Same as ${lastWeek}`
       : `${pounds(Math.abs(diff))} ${diff > 0 ? "up on" : "down on"} ${lastWeek} (${pounds(weekAgo)})`;
 
+    renderClose(closes);
     renderDepartments(counted);
     renderHours(counted);
-    renderSales(sales);
+    renderActivity(sales, events);
+  }
+
+  function verdict(diff) {
+    if (diff === 0) return `<span class="verdict ok">Spot on</span>`;
+    return `<span class="verdict off">${pounds(Math.abs(diff))} ${diff > 0 ? "over" : "short"}</span>`;
+  }
+
+  function renderClose(closes) {
+    // Latest count per shop; re-counting later in the day replaces the earlier one.
+    const latest = new Map();
+    for (const c of closes) if (!latest.has(c.shops?.name)) latest.set(c.shops?.name, c);
+    $("close").innerHTML = latest.size
+      ? [...latest.values()].map((c) => `
+          ${latest.size > 1 ? `<div class="muted">${escapeHtml(c.shops?.name ?? "")}</div>` : ""}
+          <div class="close-row"><span>Closed at</span><span>${clock.format(new Date(c.closed_at))}</span></div>
+          <div class="close-row"><span>Cash should be</span><span>${pounds(c.expected_cash_pence)}</span></div>
+          <div class="close-row"><span>Cash counted</span><span>${pounds(c.counted_cash_pence)}</span></div>
+          <div class="close-row"><span>Cash</span>${verdict(c.counted_cash_pence - c.expected_cash_pence)}</div>
+          <div class="close-row"><span>Card on the till</span><span>${pounds(c.till_card_pence)}</span></div>
+          <div class="close-row"><span>Card machine</span><span>${pounds(c.machine_card_pence)}</span></div>
+          <div class="close-row"><span>Card</span>${verdict(c.machine_card_pence - c.till_card_pence)}</div>
+          <div class="close-row muted"><span>To bank (leaving ${pounds(c.float_pence)} float)</span><span>${pounds(Math.max(0, c.counted_cash_pence - c.float_pence))}</span></div>`).join("")
+      : `<div class="empty">Not closed yet</div>`;
   }
 
   function renderDepartments(counted) {
     const byDept = new Map();
     for (const s of counted) for (const l of s.sale_lines) byDept.set(l.department, (byDept.get(l.department) || 0) + l.amount_pence);
     const rows = [...byDept].sort((a, b) => b[1] - a[1]);
-    const max = rows.length ? rows[0][1] : 1;
+    const max = Math.max(1, ...rows.map((r) => r[1]));
     $("departments").innerHTML = rows.length
       ? rows.map(([name, pence]) => `
           <div class="dept">
             <div class="dept-row"><span>${escapeHtml(name)}</span><span>${pounds(pence)}</span></div>
-            <div class="track"><div class="fill" style="width:${Math.max(2, (pence / max) * 100)}%"></div></div>
+            <div class="track"><div class="fill" style="width:${Math.max(2, (Math.max(0, pence) / max) * 100)}%"></div></div>
           </div>`).join("")
       : `<div class="empty">No sales</div>`;
   }
 
   function renderHours(counted) {
+    // Sales only: refunds would pull an hour's bar below zero.
     const byHour = new Array(24).fill(0);
-    for (const s of counted) byHour[new Date(s.sold_at).getHours()] += s.total_pence;
+    for (const s of counted) {
+      const sold = s.sale_lines.filter((l) => l.amount_pence > 0).reduce((t, l) => t + l.amount_pence, 0);
+      byHour[new Date(s.sold_at).getHours()] += sold;
+    }
     const busy = byHour.map((p, h) => (p > 0 ? h : null)).filter((h) => h !== null);
     const first = Math.min(8, ...busy);
     const last = Math.max(17, ...busy);
@@ -299,29 +375,47 @@
     for (let h = first; h <= last; h++) {
       const pence = byHour[h];
       html += `<div class="hour" title="${h}:00 – ${pounds(pence)}">
-        <div class="col ${pence ? "" : "empty"}" style="height:${pence ? Math.max(4, (pence / max) * 100) : 2}%"></div>
+        <div class="col ${pence ? "" : "quiet"}" style="height:${pence ? Math.max(4, (pence / max) * 100) : 2}%"></div>
         <span>${h}</span></div>`;
     }
     $("hours").innerHTML = html;
   }
 
-  function renderSales(sales) {
-    const shopNames = new Set(sales.map((s) => s.shops?.name));
-    $("sales").innerHTML = sales.length
-      ? sales.map((s) => {
-          const lines = [...s.sale_lines].sort((a, b) => a.line_no - b.line_no)
-            .map((l) => `${escapeHtml(l.department)} ${pounds(l.amount_pence)}`).join(" · ");
-          const shop = shopNames.size > 1 ? ` · ${escapeHtml(s.shops?.name ?? "")}` : "";
-          return `<div class="sale ${s.voided ? "void" : ""}">
-            <div class="time">${clock.format(new Date(s.sold_at))}</div>
-            <div class="what">
-              <span class="pill ${s.method === "CASH" ? "cash" : ""}">${s.method === "CASH" ? "Cash" : "Card"}</span>${s.voided ? '<span class="pill">Void</span>' : ""}${shop}
-              <div>${lines}</div>
-            </div>
-            <div class="amount">${pounds(s.total_pence)}</div>
-          </div>`;
-        }).join("")
-      : `<div class="empty">No sales yet</div>`;
+  function renderActivity(sales, events) {
+    const shopNames = new Set([...sales, ...events].map((s) => s.shops?.name));
+    const shopOf = (x) => (shopNames.size > 1 ? ` · ${escapeHtml(x.shops?.name ?? "")}` : "");
+    const rows = [
+      ...sales.map((s) => ({ at: s.sold_at, html: saleRow(s, shopOf(s)) })),
+      ...events.map((e) => ({ at: e.happened_at, html: eventRow(e, shopOf(e)) })),
+    ].sort((a, b) => new Date(b.at) - new Date(a.at));
+    $("sales").innerHTML = rows.length ? rows.map((r) => r.html).join("") : `<div class="empty">Nothing yet</div>`;
+  }
+
+  function saleRow(s, shop) {
+    const refund = s.total_pence < 0;
+    const lines = [...s.sale_lines].sort((a, b) => a.line_no - b.line_no)
+      .map((l) => `${escapeHtml(l.department)} ${pounds(l.amount_pence)}`).join(" · ");
+    const method = s.method === "CASH" ? "Cash" : "Card";
+    return `<div class="sale ${s.voided ? "void" : ""} ${refund ? "refund" : ""}">
+      <div class="time">${clock.format(new Date(s.sold_at))}</div>
+      <div class="what">
+        <span class="pill ${refund ? "refund" : s.method === "CASH" ? "cash" : ""}">${refund ? `${method} refund` : method}</span>${s.voided ? '<span class="pill">Void</span>' : ""}${s.refund_reason ? escapeHtml(s.refund_reason) : ""}${shop}
+        <div class="lines">${lines}</div>
+      </div>
+      <div class="amount">${pounds(s.total_pence)}</div>
+    </div>`;
+  }
+
+  function eventRow(e, shop) {
+    const paidOut = e.type === "PAID_OUT";
+    return `<div class="sale drawer ${e.voided ? "void" : ""}">
+      <div class="time">${clock.format(new Date(e.happened_at))}</div>
+      <div class="what">
+        <span class="pill">${paidOut ? "Paid out" : "No sale"}</span>${e.voided ? '<span class="pill">Void</span>' : ""}${shop}
+        <div>${paidOut ? escapeHtml(e.reason ?? "") : "Drawer opened"}</div>
+      </div>
+      <div class="amount">${paidOut ? pounds(-e.amount_pence) : ""}</div>
+    </div>`;
   }
 
   function setLive(on, text) {
@@ -331,16 +425,18 @@
 
   function subscribe() {
     if (channel) db.removeChannel(channel);
-    channel = db
-      .channel("sales-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "sales" }, () => {
-        const live = $("live");
-        live.classList.remove("flash");
-        void live.offsetWidth;
-        live.classList.add("flash");
-        if (sameDay(day, startOfDay(new Date()))) scheduleLoad();
-      })
-      .subscribe((status) => setLive(status === "SUBSCRIBED", status === "SUBSCRIBED" ? "Live" : "Reconnecting"));
+    const changed = () => {
+      const live = $("live");
+      live.classList.remove("flash");
+      void live.offsetWidth;
+      live.classList.add("flash");
+      if (sameDay(day, startOfDay(new Date()))) scheduleLoad();
+    };
+    channel = db.channel("sales-live");
+    for (const table of ["sales", "drawer_events", "day_closes"]) {
+      channel.on("postgres_changes", { event: "*", schema: "public", table }, changed);
+    }
+    channel.subscribe((status) => setLive(status === "SUBSCRIBED", status === "SUBSCRIBED" ? "Live" : "Reconnecting"));
   }
 
   function startApp() {
