@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#003661">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Shop Sales">
+<title>Shop Sales</title>
+<style>
+  :root {
+    --navy: #003661;
+    --accent: #003661;
+    --bg: #eef1f5;
+    --card: #ffffff;
+    --ink: #1b1f24;
+    --muted: #6b7280;
+    --line: #e3e7ec;
+    --bar: #003661;
+    --bar-soft: #c9d6e3;
+    --cash: #2e7d32;
+    --danger: #c62828;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --accent: #8fbbe8;
+      --bg: #0e151d;
+      --card: #17212c;
+      --ink: #e7edf3;
+      --muted: #93a3b5;
+      --line: #263341;
+      --bar: #8fbbe8;
+      --bar-soft: #2a3a4b;
+      --cash: #6cc070;
+      --danger: #ef6b6b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    background: var(--navy);
+    color: #fff;
+    padding: calc(env(safe-area-inset-top) + 14px) 16px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  header h1 { font-size: 20px; margin: 0; flex: 1; letter-spacing: 0.2px; }
+  .live { display: flex; align-items: center; gap: 6px; font-size: 14px; opacity: 0.9; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #9aa5b1; }
+  .live.on .dot { background: #5ee06a; box-shadow: 0 0 0 0 rgba(94, 224, 106, 0.7); }
+  .live.flash .dot { animation: pulse 1s ease-out; }
+  @keyframes pulse { from { box-shadow: 0 0 0 0 rgba(94, 224, 106, 0.8); } to { box-shadow: 0 0 0 10px rgba(94, 224, 106, 0); } }
+  header button {
+    background: none; border: 1px solid rgba(255, 255, 255, 0.4); color: #fff;
+    border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 14px;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 16px 16px calc(env(safe-area-inset-bottom) + 24px); }
+  .card { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  .daynav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .daynav button {
+    width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--card);
+    color: var(--ink); font-size: 22px;
+  }
+  .daynav button:disabled { opacity: 0.3; }
+  .daynav .label { font-size: 18px; font-weight: 600; text-align: center; }
+  .label small { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
+  .muted { color: var(--muted); }
+  .total { font-size: 44px; font-weight: 700; color: var(--accent); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .compare { font-size: 15px; margin-top: 4px; }
+  .compare.up { color: var(--cash); }
+  .compare.down { color: var(--danger); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+  .stats .card { margin: 0; padding: 12px; }
+  .stat-label { font-size: 13px; color: var(--muted); }
+  .stat-value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  h2 { font-size: 15px; margin: 0 0 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; }
+  .dept { margin-bottom: 10px; }
+  .dept-row { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 4px; }
+  .dept-row span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .track { height: 8px; border-radius: 4px; background: var(--bar-soft); overflow: hidden; }
+  .fill { height: 100%; background: var(--bar); border-radius: 4px; }
+  .hours { display: flex; align-items: flex-end; gap: 4px; height: 110px; }
+  .hour { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  .hour .col { width: 100%; background: var(--bar); border-radius: 3px 3px 0 0; min-height: 2px; }
+  .hour .col.empty { background: var(--bar-soft); }
+  .hour span { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .sale { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .sale:first-child { border-top: none; padding-top: 0; }
+  .sale .time { font-variant-numeric: tabular-nums; color: var(--muted); width: 44px; flex: none; }
+  .sale .what { flex: 1; min-width: 0; }
+  .sale .amount { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+  .pill { display: inline-block; font-size: 12px; padding: 1px 7px; border-radius: 10px; background: var(--bar-soft); color: var(--ink); margin-right: 6px; }
+  .pill.cash { background: color-mix(in srgb, var(--cash) 18%, transparent); color: var(--cash); }
+  .sale.void .what, .sale.void .amount { text-decoration: line-through; color: var(--muted); }
+  .empty { text-align: center; padding: 24px 0; color: var(--muted); }
+  #login { max-width: 380px; margin: 48px auto; padding: 0 16px; }
+  #login h2 { text-transform: none; letter-spacing: 0; font-size: 20px; color: var(--ink); }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 12px 0 4px; }
+  input {
+    width: 100%; font: inherit; padding: 12px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  }
+  .primary {
+    width: 100%; margin-top: 18px; padding: 14px; border: none; border-radius: 10px;
+    background: var(--navy); color: #fff; font: inherit; font-weight: 600;
+  }
+  .error { color: var(--danger); margin-top: 12px; min-height: 1.4em; }
+  [hidden] { display: none !important; }
+  @media (max-width: 380px) { .total { font-size: 38px; } .stat-value { font-size: 17px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Fletchers Cobblers</h1>
+  <div class="live" id="live" hidden><span class="dot"></span><span id="liveText">Connecting</span></div>
+  <button id="signOut" hidden>Sign out</button>
+</header>
+
+<section id="login" hidden>
+  <form class="card" id="loginForm">
+    <h2>Sign in to see the shop's sales</h2>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="username" required>
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" required>
+    <button class="primary" type="submit" id="signIn">Sign in</button>
+    <div class="error" id="loginError"></div>
+  </form>
+</section>
+
+<main id="app" hidden>
+  <div class="daynav">
+    <button id="prevDay" aria-label="Previous day">‹</button>
+    <div class="label" id="dayLabel"></div>
+    <button id="nextDay" aria-label="Next day">›</button>
+  </div>
+
+  <div class="card">
+    <div class="stat-label">Takings</div>
+    <div class="total" id="total">£0.00</div>
+    <div class="compare muted" id="compare"></div>
+  </div>
+
+  <div class="stats">
+    <div class="card"><div class="stat-label">Cash</div><div class="stat-value" id="cash">£0.00</div></div>
+    <div class="card"><div class="stat-label">Card</div><div class="stat-value" id="card">£0.00</div></div>
+    <div class="card"><div class="stat-label">Sales</div><div class="stat-value" id="count">0</div></div>
+  </div>
+
+  <div class="card">
+    <h2>By department</h2>
+    <div id="departments"></div>
+  </div>
+
+  <div class="card">
+    <h2>Through the day</h2>
+    <div class="hours" id="hours"></div>
+  </div>
+
+  <div class="card">
+    <h2>Sales</h2>
+    <div id="sales"></div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // Publishable key: meant to be public. Row-level security only lets the owner's login read sales.
+  const SUPABASE_URL = "https://hgoknavmxkaoolozzwkc.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_W7wlg7ZG_k_gYwbj1WcqCA_3JzDF_K3";
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const $ = (id) => document.getElementById(id);
+  const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
+  const pounds = (pence) => money.format(pence / 100);
+  const clock = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const longDay = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "long" });
+  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const sameDay = (a, b) => a.getTime() === b.getTime();
+
+  let day = startOfDay(new Date());
+  let channel = null;
+  let reloadTimer = null;
+
+  function show(which) {
+    $("login").hidden = which !== "login";
+    $("app").hidden = which !== "app";
+    $("live").hidden = which !== "app";
+    $("signOut").hidden = which !== "app";
+  }
+
+  async function fetchSales(from, to) {
+    const { data, error } = await db
+      .from("sales")
+      .select("id, sold_at, total_pence, method, voided, shops(name), sale_lines(line_no, department, amount_pence)")
+      .gte("sold_at", from.toISOString())
+      .lt("sold_at", to.toISOString())
+      .order("sold_at", { ascending: false });
+    if (error) throw error;
+    return data;
+  }
+
+  async function fetchTakings(from, to) {
+    const { data, error } = await db
+      .from("sales")
+      .select("total_pence")
+      .eq("voided", false)
+      .gte("sold_at", from.toISOString())
+      .lt("sold_at", to.toISOString());
+    if (error) throw error;
+    return data.reduce((sum, s) => sum + s.total_pence, 0);
+  }
+
+  async function load() {
+    const today = startOfDay(new Date());
+    const isToday = sameDay(day, today);
+    const to = addDays(day, 1);
+    // Today is compared with last week up to the same time; past days with the whole day.
+    const weekAgoFrom = addDays(day, -7);
+    const weekAgoTo = isToday ? new Date(Date.now() - 7 * 864e5) : addDays(to, -7);
+
+    renderDayNav(isToday, today);
+    try {
+      const [sales, weekAgo] = await Promise.all([fetchSales(day, to), fetchTakings(weekAgoFrom, weekAgoTo)]);
+      render(sales, weekAgo, isToday);
+    } catch (e) {
+      $("sales").innerHTML = `<div class="empty">Couldn't load sales: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function scheduleLoad() {
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(load, 300);
+  }
+
+  function renderDayNav(isToday, today) {
+    const title = isToday ? "Today" : sameDay(day, addDays(today, -1)) ? "Yesterday" : weekday.format(day);
+    $("dayLabel").innerHTML = `${title}<small>${longDay.format(day)}</small>`;
+    $("nextDay").disabled = isToday;
+  }
+
+  function render(sales, weekAgo, isToday) {
+    const counted = sales.filter((s) => !s.voided);
+    const sum = (list) => list.reduce((t, s) => t + s.total_pence, 0);
+    const total = sum(counted);
+
+    $("total").textContent = pounds(total);
+    $("cash").textContent = pounds(sum(counted.filter((s) => s.method === "CASH")));
+    $("card").textContent = pounds(sum(counted.filter((s) => s.method === "CARD")));
+    $("count").textContent = counted.length;
+
+    const diff = total - weekAgo;
+    const lastWeek = `last ${weekday.format(addDays(day, -7))}${isToday ? " by this time" : ""}`;
+    const compare = $("compare");
+    compare.className = "compare " + (weekAgo === 0 && total === 0 ? "muted" : diff >= 0 ? "up" : "down");
+    compare.textContent = weekAgo === 0 && total === 0
+      ? `Nothing yet, and nothing ${lastWeek}`
+      : diff === 0 ? `Same as ${lastWeek}`
+      : `${pounds(Math.abs(diff))} ${diff > 0 ? "up on" : "down on"} ${lastWeek} (${pounds(weekAgo)})`;
+
+    renderDepartments(counted);
+    renderHours(counted);
+    renderSales(sales);
+  }
+
+  function renderDepartments(counted) {
+    const byDept = new Map();
+    for (const s of counted) for (const l of s.sale_lines) byDept.set(l.department, (byDept.get(l.department) || 0) + l.amount_pence);
+    const rows = [...byDept].sort((a, b) => b[1] - a[1]);
+    const max = rows.length ? rows[0][1] : 1;
+    $("departments").innerHTML = rows.length
+      ? rows.map(([name, pence]) => `
+          <div class="dept">
+            <div class="dept-row"><span>${escapeHtml(name)}</span><span>${pounds(pence)}</span></div>
+            <div class="track"><div class="fill" style="width:${Math.max(2, (pence / max) * 100)}%"></div></div>
+          </div>`).join("")
+      : `<div class="empty">No sales</div>`;
+  }
+
+  function renderHours(counted) {
+    const byHour = new Array(24).fill(0);
+    for (const s of counted) byHour[new Date(s.sold_at).getHours()] += s.total_pence;
+    const busy = byHour.map((p, h) => (p > 0 ? h : null)).filter((h) => h !== null);
+    const first = Math.min(8, ...busy);
+    const last = Math.max(17, ...busy);
+    const max = Math.max(1, ...byHour);
+    let html = "";
+    for (let h = first; h <= last; h++) {
+      const pence = byHour[h];
+      html += `<div class="hour" title="${h}:00 – ${pounds(pence)}">
+        <div class="col ${pence ? "" : "empty"}" style="height:${pence ? Math.max(4, (pence / max) * 100) : 2}%"></div>
+        <span>${h}</span></div>`;
+    }
+    $("hours").innerHTML = html;
+  }
+
+  function renderSales(sales) {
+    const shopNames = new Set(sales.map((s) => s.shops?.name));
+    $("sales").innerHTML = sales.length
+      ? sales.map((s) => {
+          const lines = [...s.sale_lines].sort((a, b) => a.line_no - b.line_no)
+            .map((l) => `${escapeHtml(l.department)} ${pounds(l.amount_pence)}`).join(" · ");
+          const shop = shopNames.size > 1 ? ` · ${escapeHtml(s.shops?.name ?? "")}` : "";
+          return `<div class="sale ${s.voided ? "void" : ""}">
+            <div class="time">${clock.format(new Date(s.sold_at))}</div>
+            <div class="what">
+              <span class="pill ${s.method === "CASH" ? "cash" : ""}">${s.method === "CASH" ? "Cash" : "Card"}</span>${s.voided ? '<span class="pill">Void</span>' : ""}${shop}
+              <div>${lines}</div>
+            </div>
+            <div class="amount">${pounds(s.total_pence)}</div>
+          </div>`;
+        }).join("")
+      : `<div class="empty">No sales yet</div>`;
+  }
+
+  function setLive(on, text) {
+    $("live").classList.toggle("on", on);
+    $("liveText").textContent = text;
+  }
+
+  function subscribe() {
+    if (channel) db.removeChannel(channel);
+    channel = db
+      .channel("sales-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "sales" }, () => {
+        const live = $("live");
+        live.classList.remove("flash");
+        void live.offsetWidth;
+        live.classList.add("flash");
+        if (sameDay(day, startOfDay(new Date()))) scheduleLoad();
+      })
+      .subscribe((status) => setLive(status === "SUBSCRIBED", status === "SUBSCRIBED" ? "Live" : "Reconnecting"));
+  }
+
+  function startApp() {
+    show("app");
+    day = startOfDay(new Date());
+    load();
+    subscribe();
+  }
+
+  const goTo = (d) => {
+    day = d;
+    followToday = sameDay(day, startOfDay(new Date()));
+    load();
+  };
+  $("prevDay").onclick = () => goTo(addDays(day, -1));
+  $("nextDay").onclick = () => goTo(addDays(day, 1));
+
+  $("loginForm").onsubmit = async (e) => {
+    e.preventDefault();
+    $("signIn").disabled = true;
+    $("loginError").textContent = "";
+    const { error } = await db.auth.signInWithPassword({ email: $("email").value.trim(), password: $("password").value });
+    $("signIn").disabled = false;
+    if (error) $("loginError").textContent = "That email and password weren't accepted.";
+    else startApp();
+  };
+
+  $("signOut").onclick = async () => {
+    if (channel) db.removeChannel(channel);
+    await db.auth.signOut();
+    show("login");
+  };
+
+  // Phones freeze background tabs: catch up when the page comes back.
+  // While looking at today, stay on today across midnight.
+  let followToday = true;
+  const catchUp = () => {
+    if ($("app").hidden) return;
+    const today = startOfDay(new Date());
+    if (followToday && !sameDay(day, today)) { day = today; load(); }
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !$("app").hidden) { catchUp(); load(); }
+  });
+  setInterval(catchUp, 60_000);
+
+  db.auth.getSession().then(({ data }) => (data.session ? startApp() : show("login")));
+</script>
+</body>
+</html>
