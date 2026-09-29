@@ -218,7 +218,7 @@
   async function fetchSales(from, to) {
     const { data, error } = await db
       .from("sales")
-      .select("id, sold_at, total_pence, method, cash_pence, card_pence, refund_reason, voided, shops(name), sale_lines(line_no, department, amount_pence)")
+      .select("id, sold_at, total_pence, method, cash_pence, card_pence, refund_reason, voided, shops(name), sale_lines(line_no, department, amount_pence, description, quantity)")
       .gte("sold_at", from.toISOString())
       .lt("sold_at", to.toISOString())
       .order("sold_at", { ascending: false });
@@ -395,7 +395,7 @@
   function saleRow(s, shop) {
     const refund = s.total_pence < 0;
     const lines = [...s.sale_lines].sort((a, b) => a.line_no - b.line_no)
-      .map((l) => `${escapeHtml(l.department)} ${pounds(l.amount_pence)}`).join(" · ");
+      .map((l) => `${escapeHtml(l.description ?? l.department)}${l.quantity > 1 ? ` ×${l.quantity}` : ""} ${pounds(l.amount_pence)}`).join(" · ");
     const method = s.method === "CASH" ? "Cash"
       : s.method === "SPLIT" ? `Split: ${pounds(s.cash_pence)} cash + ${pounds(s.card_pence)} card`
       : "Card";
