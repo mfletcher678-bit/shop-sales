@@ -125,7 +125,7 @@
 </head>
 <body>
 <header>
-  <h1>Fletchers Cobblers</h1>
+  <h1 id="shopName">Shop Sales</h1>
   <div class="live" id="live" hidden><span class="dot"></span><span id="liveText">Connecting</span></div>
   <button id="signOut" hidden>Sign out</button>
 </header>
@@ -442,9 +442,19 @@
     channel.subscribe((status) => setLive(status === "SUBSCRIBED", status === "SUBSCRIBED" ? "Live" : "Reconnecting"));
   }
 
+  // The header names the shop this login can see (each login only sees its own shops).
+  async function showShopName() {
+    const { data } = await db.from("shops").select("name");
+    if (data && data.length === 1) {
+      $("shopName").textContent = data[0].name;
+      document.title = data[0].name;
+    }
+  }
+
   function startApp() {
     show("app");
     day = startOfDay(new Date());
+    showShopName();
     load();
     subscribe();
   }
