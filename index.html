@@ -119,6 +119,22 @@
     background: var(--navy); color: #fff; font: inherit; font-weight: 600;
   }
   .error { color: var(--danger); margin-top: 12px; min-height: 1.4em; }
+  .modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+  .modes button {
+    border: none; border-radius: 10px; padding: 10px 0; font: inherit; font-weight: 600;
+    background: var(--card); color: var(--ink);
+  }
+  .modes button.on { background: var(--navy); color: #fff; }
+  .daynav .label input {
+    display: block; margin: 4px auto 0; width: auto; padding: 4px 8px; font-size: 14px;
+    border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  }
+  .controls { display: flex; gap: 12px; }
+  .controls label { flex: 1; margin: 0; }
+  .controls input { margin-top: 4px; }
+  .period-row { display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); cursor: pointer; }
+  .period-row:first-child { border-top: none; padding-top: 0; }
+  .period-row span:last-child { font-weight: 700; font-variant-numeric: tabular-nums; }
   [hidden] { display: none !important; }
   @media (max-width: 380px) { .total { font-size: 38px; } .stat-value { font-size: 17px; } }
 </style>
@@ -143,12 +159,62 @@
 </section>
 
 <main id="app" hidden>
-  <div class="daynav">
-    <button id="prevDay" aria-label="Previous day">‹</button>
-    <div class="label" id="dayLabel"></div>
-    <button id="nextDay" aria-label="Next day">›</button>
+  <div class="modes" id="modes">
+    <button data-mode="day" class="on">Day</button>
+    <button data-mode="range">Range</button>
+    <button data-mode="month">Month</button>
+    <button data-mode="year">Year</button>
   </div>
 
+  <div class="daynav" id="dayControls">
+    <button id="prevDay" aria-label="Previous day">‹</button>
+    <div class="label"><span id="dayLabel"></span><input type="date" id="dayPick" aria-label="Pick a day"></div>
+    <button id="nextDay" aria-label="Next day">›</button>
+  </div>
+  <div class="card controls" id="rangeControls" hidden>
+    <label>From <input type="date" id="rangeFrom"></label>
+    <label>To <input type="date" id="rangeTo"></label>
+  </div>
+  <div class="daynav" id="monthControls" hidden>
+    <button id="prevMonth" aria-label="Previous month">‹</button>
+    <div class="label"><span id="monthLabel"></span><input type="month" id="monthPick" aria-label="Pick a month"></div>
+    <button id="nextMonth" aria-label="Next month">›</button>
+  </div>
+  <div class="daynav" id="yearControls" hidden>
+    <button id="prevYear" aria-label="Previous year">‹</button>
+    <div class="label" id="yearLabel"></div>
+    <button id="nextYear" aria-label="Next year">›</button>
+  </div>
+
+  <section id="periodView" hidden>
+    <div class="card">
+      <div class="stat-label" id="pLabel">Takings</div>
+      <div class="total" id="pTotal">£0.00</div>
+      <div class="compare muted" id="pCompare"></div>
+    </div>
+    <div class="stats">
+      <div class="card"><div class="stat-label">Cash</div><div class="stat-value" id="pCash">£0.00</div></div>
+      <div class="card"><div class="stat-label">Card</div><div class="stat-value" id="pCard">£0.00</div></div>
+      <div class="card"><div class="stat-label">Sales</div><div class="stat-value" id="pCount">0</div></div>
+      <div class="card"><div class="stat-label">Refunds</div><div class="stat-value" id="pRefunds">£0.00</div></div>
+      <div class="card"><div class="stat-label">Paid out</div><div class="stat-value" id="pPaidOut">£0.00</div></div>
+      <div class="card"><div class="stat-label">No sales</div><div class="stat-value" id="pNoSales">0</div></div>
+    </div>
+    <div class="card">
+      <h2 id="pChartTitle">Day by day</h2>
+      <div class="hours" id="pChart"></div>
+    </div>
+    <div class="card">
+      <h2>By department</h2>
+      <div id="pDepartments"></div>
+    </div>
+    <div class="card">
+      <h2 id="pListTitle">Each day</h2>
+      <div id="pList"></div>
+    </div>
+  </section>
+
+  <section id="dayView">
   <div class="card">
     <div class="stat-label">Takings</div>
     <div class="total" id="total">£0.00</div>
@@ -183,6 +249,7 @@
     <h2>Everything through the till</h2>
     <div id="sales"></div>
   </div>
+  </section>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -291,6 +358,8 @@
     const title = isToday ? "Today" : sameDay(day, addDays(today, -1)) ? "Yesterday" : weekday.format(day);
     $("dayLabel").innerHTML = `${title}<small>${longDay.format(day)}</small>`;
     $("nextDay").disabled = isToday;
+    $("dayPick").value = isoDate(day);
+    $("dayPick").max = isoDate(today);
   }
 
   function render(sales, events, closes, weekAgo, isToday) {
@@ -433,7 +502,13 @@
       live.classList.remove("flash");
       void live.offsetWidth;
       live.classList.add("flash");
-      if (sameDay(day, startOfDay(new Date()))) scheduleLoad();
+      if (mode === "day") {
+        if (sameDay(day, startOfDay(new Date()))) scheduleLoad();
+      } else if (Date.now() < periodBounds().to.getTime()) {
+        // A period that includes today: refresh its totals.
+        clearTimeout(reloadTimer);
+        reloadTimer = setTimeout(loadPeriod, 800);
+      }
     };
     channel = db.channel("sales-live");
     for (const table of ["sales", "drawer_events", "day_closes"]) {
@@ -466,6 +541,159 @@
   };
   $("prevDay").onclick = () => goTo(addDays(day, -1));
   $("nextDay").onclick = () => goTo(addDays(day, 1));
+  $("dayPick").onchange = () => { if ($("dayPick").value) goTo(parseDate($("dayPick").value)); };
+
+  // ---- Range, month and year: totals added up by the database ---------------------------
+  let mode = "day";
+  const parseDate = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d || 1); };
+  const monthName = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
+  const shortDay = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const shortMonth = new Intl.DateTimeFormat("en-GB", { month: "short" });
+  let month = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  let year = new Date().getFullYear();
+  $("rangeFrom").value = isoDate(addDays(startOfDay(new Date()), -6));
+  $("rangeTo").value = isoDate(startOfDay(new Date()));
+
+  function periodBounds() {
+    if (mode === "range") {
+      let from = parseDate($("rangeFrom").value), to = parseDate($("rangeTo").value);
+      if (to < from) [from, to] = [to, from];
+      return { from, to: addDays(to, 1) };
+    }
+    if (mode === "month") return { from: month, to: new Date(month.getFullYear(), month.getMonth() + 1, 1) };
+    return { from: new Date(year, 0, 1), to: new Date(year + 1, 0, 1) };
+  }
+
+  function previousBounds({ from, to }) {
+    if (mode === "month") return { from: new Date(from.getFullYear(), from.getMonth() - 1, 1), to: from };
+    if (mode === "year") return { from: new Date(year - 1, 0, 1), to: from };
+    const days = Math.round((to - from) / 864e5);
+    return { from: addDays(from, -days), to: from };
+  }
+
+  function periodName({ from, to }) {
+    if (mode === "month") return monthName.format(from);
+    if (mode === "year") return String(year);
+    const last = addDays(to, -1);
+    return sameDay(from, last) ? longDay.format(from) : `${shortDay.format(from)} – ${shortDay.format(last)}`;
+  }
+
+  async function totals({ from, to }) {
+    const { data, error } = await db.rpc("sales_totals", { p_from: from.toISOString(), p_to: to.toISOString() });
+    if (error) throw error;
+    return data;
+  }
+
+  async function loadPeriod() {
+    const bounds = periodBounds();
+    const prev = previousBounds(bounds);
+    // A period still going (this month, this year) is compared with the last one up to the
+    // same point, not the whole of it.
+    prev.partial = Date.now() < bounds.to.getTime();
+    if (prev.partial) {
+      const elapsed = Date.now() - bounds.from.getTime();
+      prev.to = new Date(Math.min(prev.to.getTime(), prev.from.getTime() + elapsed));
+    }
+    $("monthLabel").textContent = monthName.format(month);
+    $("monthPick").value = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`;
+    $("nextMonth").disabled = new Date(month.getFullYear(), month.getMonth() + 1, 1) > new Date();
+    $("yearLabel").textContent = year;
+    $("nextYear").disabled = year >= new Date().getFullYear();
+    try {
+      const [cur, before] = await Promise.all([totals(bounds), totals(prev)]);
+      renderPeriod(cur, before, bounds, prev);
+    } catch (e) {
+      $("pList").innerHTML = `<div class="empty">Couldn't load totals: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function renderPeriod(t, before, bounds, prev) {
+    $("pLabel").textContent = `Takings · ${periodName(bounds)}`;
+    $("pTotal").textContent = pounds(t.takings);
+    $("pCash").textContent = pounds(t.cash);
+    $("pCard").textContent = pounds(t.card);
+    $("pCount").textContent = t.sale_count;
+    $("pRefunds").textContent = pounds(t.refunds);
+    $("pPaidOut").textContent = pounds(t.paid_out);
+    $("pNoSales").textContent = t.no_sales;
+
+    const vs = (mode === "month" ? monthName.format(prev.from) : mode === "year" ? String(year - 1) : "the period before")
+      + (prev.partial && mode !== "range" ? " by the same date" : "");
+    const diff = t.takings - before.takings;
+    const compare = $("pCompare");
+    compare.className = "compare " + (before.takings === 0 && t.takings === 0 ? "muted" : diff >= 0 ? "up" : "down");
+    compare.textContent = before.takings === 0 && t.takings === 0 ? `Nothing taken, and nothing in ${vs}`
+      : before.takings === 0 ? `Nothing in ${vs} to compare with`
+      : diff === 0 ? `Same as ${vs}`
+      : `${pounds(Math.abs(diff))} ${diff > 0 ? "up on" : "down on"} ${vs} (${pounds(before.takings)})`;
+
+    // Bars: a day each, or a month each for a year or a long range.
+    const days = Math.round((bounds.to - bounds.from) / 864e5);
+    const byMonth = mode === "year" || days > 62;
+    const buckets = [];
+    if (byMonth) {
+      const got = new Map(t.by_month.map((m) => [m.month.slice(0, 7), m.takings]));
+      for (let d = new Date(bounds.from.getFullYear(), bounds.from.getMonth(), 1); d < bounds.to; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+        const key = isoDate(d).slice(0, 7);
+        buckets.push({ date: d, label: shortMonth.format(d).slice(0, 3), name: monthName.format(d), pence: got.get(key) || 0 });
+      }
+    } else {
+      const got = new Map(t.by_day.map((d) => [d.day, d.takings]));
+      for (let d = bounds.from; d < bounds.to; d = addDays(d, 1)) {
+        buckets.push({ date: d, label: String(d.getDate()), name: shortDay.format(d), pence: got.get(isoDate(d)) || 0 });
+      }
+    }
+    $("pChartTitle").textContent = byMonth ? "Month by month" : "Day by day";
+    $("pListTitle").textContent = byMonth ? "Each month" : "Each day";
+    const max = Math.max(1, ...buckets.map((b) => b.pence));
+    const step = Math.ceil(buckets.length / 16); // label every few bars when there are lots
+    $("pChart").innerHTML = buckets.map((b, i) => `
+      <div class="hour" title="${b.name} – ${pounds(b.pence)}">
+        <div class="col ${b.pence > 0 ? "" : "quiet"}" style="height:${b.pence > 0 ? Math.max(4, (b.pence / max) * 100) : 2}%"></div>
+        <span>${i % step === 0 ? b.label : "&nbsp;"}</span></div>`).join("");
+
+    const rows = t.departments;
+    const deptMax = Math.max(1, ...rows.map((r) => r.pence));
+    $("pDepartments").innerHTML = rows.length
+      ? rows.map((r) => `
+          <div class="dept">
+            <div class="dept-row"><span>${escapeHtml(r.department)}</span><span>${pounds(r.pence)}</span></div>
+            <div class="track"><div class="fill" style="width:${Math.max(2, (Math.max(0, r.pence) / deptMax) * 100)}%"></div></div>
+          </div>`).join("")
+      : `<div class="empty">No sales</div>`;
+
+    // Newest first; tap a day to open it, tap a month to open that month.
+    const traded = buckets.filter((b) => b.pence !== 0).reverse();
+    $("pList").innerHTML = traded.length
+      ? traded.map((b) => `<div class="period-row" data-date="${isoDate(b.date)}"><span>${b.name}</span><span>${pounds(b.pence)}</span></div>`).join("")
+      : `<div class="empty">No sales in this period</div>`;
+    for (const row of $("pList").querySelectorAll(".period-row")) {
+      row.onclick = () => {
+        const d = parseDate(row.dataset.date);
+        if (byMonth) { month = d; setMode("month"); } else { setMode("day"); goTo(d); }
+      };
+    }
+  }
+
+  function setMode(next) {
+    mode = next;
+    for (const b of $("modes").querySelectorAll("button")) b.classList.toggle("on", b.dataset.mode === mode);
+    $("dayControls").hidden = mode !== "day";
+    $("dayView").hidden = mode !== "day";
+    $("rangeControls").hidden = mode !== "range";
+    $("monthControls").hidden = mode !== "month";
+    $("yearControls").hidden = mode !== "year";
+    $("periodView").hidden = mode === "day";
+    if (mode === "day") load(); else loadPeriod();
+  }
+
+  for (const b of $("modes").querySelectorAll("button")) b.onclick = () => setMode(b.dataset.mode);
+  $("rangeFrom").onchange = $("rangeTo").onchange = () => loadPeriod();
+  $("prevMonth").onclick = () => { month = new Date(month.getFullYear(), month.getMonth() - 1, 1); loadPeriod(); };
+  $("nextMonth").onclick = () => { month = new Date(month.getFullYear(), month.getMonth() + 1, 1); loadPeriod(); };
+  $("monthPick").onchange = () => { if ($("monthPick").value) { month = parseDate($("monthPick").value); loadPeriod(); } };
+  $("prevYear").onclick = () => { year -= 1; loadPeriod(); };
+  $("nextYear").onclick = () => { year += 1; loadPeriod(); };
 
   $("loginForm").onsubmit = async (e) => {
     e.preventDefault();
@@ -487,12 +715,13 @@
   // While looking at today, stay on today across midnight.
   let followToday = true;
   const catchUp = () => {
-    if ($("app").hidden) return;
+    if ($("app").hidden || mode !== "day") return;
     const today = startOfDay(new Date());
     if (followToday && !sameDay(day, today)) { day = today; load(); }
   };
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && !$("app").hidden) { catchUp(); load(); }
+    if (document.visibilityState !== "visible" || $("app").hidden) return;
+    if (mode === "day") { catchUp(); load(); } else loadPeriod();
   });
   setInterval(catchUp, 60_000);
 
