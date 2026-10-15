@@ -272,6 +272,13 @@ function supaApi() {
       ]);
       const data = { places: must(places), people: must(people), closures: must(closures), leave };
       data.me = data.people.find((p) => p.user_id === userId) ?? null;
+      if (data.me && !data.me.is_admin) {
+        // Staff get their own rows in full, and only names, dates and Day off / Holiday for everyone else.
+        const team = must(await db.rpc("rota_team"));
+        data.people = team.map((t) => (t.id === data.me.id ? data.me : t));
+        const others = await paged(() => db.rpc("rota_team_leave", { p_from: cut }));
+        data.leave = data.leave.concat(others.filter((l) => l.person_id !== data.me.id));
+      }
       data.logins = data.me?.is_admin ? must(await db.from("rota_logins").select("*")) : [];
       data.extras = data.me ? must(await db.from("rota_extra_days").select("*").order("created_at")) : [];
       return data;
@@ -342,7 +349,14 @@ function demoApi(as) {
     async session() { return { user: { id: me.user_id, email: me.name.toLowerCase() + "@example.com" } }; },
     async signIn() {}, async signOut() { location.reload(); }, async setPassword() {}, async resetPassword() {}, async claim() {},
     async loadClosures() {},
-    async load() { await later(); return { places, people, closures: store.closures, leave, me, logins: me.is_admin ? store.logins : [], extras: store.extras }; },
+    async load() {
+      await later();
+      if (me.is_admin) return { places, people, closures: store.closures, leave, me, logins: store.logins, extras: store.extras };
+      const team = people.map((p) => (p === me ? p : { id: p.id, name: p.name, days_per_week: p.days_per_week, home_place_id: p.home_place_id, is_admin: p.is_admin, active: p.active, sort: p.sort, tracks_holiday: p.tracks_holiday }));
+      const seen = leave.filter((l) => l.person_id === me.id).concat(leave.filter((l) => l.person_id !== me.id && ["holiday", "rest"].includes(l.kind) && l.status === "approved")
+        .map((l) => ({ id: l.id, person_id: l.person_id, first_day: l.first_day, last_day: l.last_day, kind: l.kind, status: l.status })));
+      return { places, people: team, closures: store.closures, leave: seen, me, logins: [], extras: store.extras.filter((e) => e.person_id === me.id) };
+    },
     async addExtra(row) { store.extras.push({ id: id(), ...row }); },
     async deleteExtra(eid) { store.extras.splice(store.extras.findIndex((e) => e.id === eid), 1); },
     async shifts(from, to) { return shifts.filter((s) => s.day >= from && s.day <= to); },
@@ -921,7 +935,7 @@ function leaveItem(l, { own, decide }) {
     extra += `<div class="row" style="margin-top:6px"><button class="btn danger" data-remove="${l.id}">Remove</button></div>`;
   }
   return `<li><div class="row"><b>${own ? "" : esc(p?.name) + " · "}${when}</b>${kind}<span class="spacer"></span>${status}</div>
-    <div class="muted small">${l.kind === "holiday" ? `${num(l.days)} holiday day${Number(l.days) === 1 ? "" : "s"}` : ""}${l.kind === "holiday" && l.note ? " · " : ""}${l.note ? esc(l.note) : ""}</div>${extra}</li>`;
+    <div class="muted small">${l.kind === "holiday" && l.days != null ? `${num(l.days)} holiday day${Number(l.days) === 1 ? "" : "s"}` : ""}${l.kind === "holiday" && l.days != null && l.note ? " · " : ""}${l.note ? esc(l.note) : ""}</div>${extra}</li>`;
 }
 
 async function decide(id, status) {
