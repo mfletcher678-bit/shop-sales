@@ -163,13 +163,16 @@ function openDays(first, last) {
   for (let d = first, i = 0; d <= last && i < 400; d = addDays(d, 1), i++) if (!isSunday(d) && !closureOn(d)) out.push(d);
   return out;
 }
+/** Bank holidays and closures in the week starting on Monday `mon` (shops shut Sundays anyway). */
+const closuresInWeek = (mon) => S.closures.filter((c) => c.day >= mon && c.day < addDays(mon, 6)).length;
+/** Days someone works in a week: a bank holiday takes one of them, so 5 days go to 4 and 2 go to 1. */
+const workingDays = (p, mon) => Math.max(0, (Math.ceil(Number(p.days_per_week)) || 0) - closuresInWeek(mon));
 /** Holiday days a request uses: open days, at most the person's working days in any one week. */
 function daysUsed(p, first, last) {
-  const cap = Math.ceil(Number(p.days_per_week)) || 0;
   const weeks = new Map();
   for (const d of openDays(first, last)) weeks.set(monday(d), (weeks.get(monday(d)) || 0) + 1);
   let n = 0;
-  for (const c of weeks.values()) n += Math.min(c, cap);
+  for (const [mon, c] of weeks) n += Math.min(c, workingDays(p, mon));
   return n;
 }
 function allowance(p, year) {
@@ -178,21 +181,20 @@ function allowance(p, year) {
   const waiting = mine.filter((l) => l.status === "requested").reduce((s, l) => s + Number(l.days), 0);
   const base = Number(p.chosen_days);
   // Extra days for this year only: carried over, earned by working extra, anything else agreed.
-  const extras = S.extras.filter((e) => e.person_id === p.id && e.year === year);
+  const extras = S.extras.filter((e) => e.person_id === p.id && e.year === year && e.kind !== "overtime");
   const extra = extras.reduce((s, e) => s + Number(e.days), 0);
   const chosen = base + extra;
-  // The legal minimum is 5.6 weeks (28 days at most). Full-timers get every bank holiday and
-  // closure day off on top of their normal day off, so each counts in full (at most their working
-  // days in any one week). Part-timers only gain the ones on their days: roughly their share of six.
+  // The legal minimum is 5.6 weeks (28 days at most). A bank holiday or closure takes one of the
+  // week's working days for everyone (5 days go to 4, 2 go to 1), so each counts in full, up to
+  // their working days in that week.
   const dpw = Number(p.days_per_week);
   const perWeek = new Map();
   for (const c of S.closures) {
     if (!c.day.startsWith(String(year)) || isSunday(c.day)) continue;
     perWeek.set(monday(c.day), (perWeek.get(monday(c.day)) || 0) + 1);
   }
-  const share = dpw >= 5 ? 1 : dpw / 6;
   let fromClosures = 0;
-  for (const n of perWeek.values()) fromClosures += Math.min(n * share, dpw);
+  for (const n of perWeek.values()) fromClosures += Math.min(n, dpw);
   const given = base + fromClosures;
   const minimum = Math.min(28, 5.6 * dpw);
   const christmasSet = S.closures.some((c) => c.kind === "closure" && c.day.startsWith(`${year}-12`));
@@ -278,7 +280,8 @@ function demoApi(as) {
   shifts.splice(0, shifts.length, ...shifts.filter((s) => !(s.person_id === "pe_ross" && s.day === addDays(wk, 3))));
   const closures = [];
   const store = { places, people, shifts, leave, closures, logins: [{ person_id: "pe_ross", email: "ross@example.com" }],
-    extras: [{ id: id(), person_id: "pe_kyle", year: Number(TODAY.slice(0, 4)), days: 4, reason: "Carried over" }] };
+    extras: [{ id: id(), person_id: "pe_kyle", year: Number(TODAY.slice(0, 4)), days: 4, kind: "carried_over", worked_on: null, reason: "Carried over" },
+      { id: id(), person_id: "pe_jamie", year: Number(TODAY.slice(0, 4)), days: 1, kind: "overtime", worked_on: addDays(monday(TODAY), -2), reason: "Overtime (covered Hull)" }] };
   const me = as === "staff" ? people[1] : people[0];
   const later = () => new Promise((r) => setTimeout(r, 30));
   return {
@@ -397,7 +400,10 @@ function renderRota() {
   for (const d of days) html += `<th class="${d === TODAY ? "today" : ""}">${dayLabel(d)}</th>`;
   html += `</tr></thead><tbody>`;
   for (const p of people) {
-    html += `<tr class="${S.me && p.id === S.me.id ? "me" : ""}"><td class="name">${esc(p.name)}${p.days_per_week ? `<small>${num(p.days_per_week)} days</small>` : ""}</td>`;
+    const short = closuresInWeek(S.week) > 0 && p.days_per_week > 0;
+    const wd = workingDays(p, S.week);
+    const booked = S.shifts.filter((x) => x.person_id === p.id && x.day >= S.week && x.day <= end).length;
+    html += `<tr class="${S.me && p.id === S.me.id ? "me" : ""}"><td class="name">${esc(p.name)}${p.days_per_week ? `<small>${short ? `${wd} day${wd === 1 ? "" : "s"} this week` : `${num(p.days_per_week)} days`}</small>` : ""}${admin && short && booked > wd ? `<span class="chip clash">${booked} on</span>` : ""}</td>`;
     for (const d of days) {
       const c = closureOn(d);
       if (c) { html += `<td class="cell closed">${esc(c.name)}</td>`; continue; }
@@ -488,9 +494,20 @@ function renderHolidays() {
     html += `<div class="card"><h2>Waiting for you${waiting.length ? ` (${waiting.length})` : ""}</h2>${waiting.length ? `<ul class="list">${waiting.map((l) => leaveItem(l, { decide: true })).join("")}</ul>` : `<p class="muted">No requests waiting.</p>`}
       <button class="btn ghost" id="addOff">Add time off for someone</button></div>`;
     const yearExtras = S.extras.filter((e) => e.year === y);
-    html += `<div class="card"><div class="row"><h2 style="margin:0">Extra days in ${y}</h2><span class="spacer"></span><button class="btn ghost" id="addExtra">Add extra days</button></div>
-      ${yearExtras.length ? `<ul class="list">${yearExtras.map((e) => `<li class="row"><b>${esc(person(e.person_id)?.name)}</b><span>${num(e.days)} day${Number(e.days) === 1 ? "" : "s"}</span><span class="muted small">${esc(e.reason)}</span><span class="spacer"></span><button class="btn danger" data-unextra="${e.id}">Remove</button></li>`).join("")}</ul>`
-        : `<p class="muted small">Carried over from last year, days earned by working extra, or anything else agreed on top of the normal allowance.</p>`}</div>`;
+    const extraItem = (e) => `<li class="row"><b>${esc(person(e.person_id)?.name)}</b><span>${num(e.days)} day${Number(e.days) === 1 ? "" : "s"}</span>
+      <span class="muted small">${e.worked_on ? dayLabel(e.worked_on) + " · " : ""}${esc(e.reason)}</span><span class="spacer"></span><button class="btn danger" data-unextra="${e.id}">Remove</button></li>`;
+    const holidayExtras = yearExtras.filter((e) => e.kind !== "overtime");
+    const overtime = yearExtras.filter((e) => e.kind === "overtime").sort((a, b) => (a.worked_on || "").localeCompare(b.worked_on || ""));
+    const months = [...new Set(overtime.map((e) => (e.worked_on || `${y}-01-01`).slice(0, 7)))];
+    html += `<div class="card"><div class="row"><h2 style="margin:0">Extra days & overtime in ${y}</h2><span class="spacer"></span><button class="btn ghost" id="addExtra">Add</button></div>
+      <h3>Added to holiday</h3>
+      ${holidayExtras.length ? `<ul class="list">${holidayExtras.map(extraItem).join("")}</ul>` : `<p class="muted small">Days in lieu for extra days worked, holiday carried over from last year, or anything else agreed.</p>`}
+      <h3>Overtime (paid)</h3>
+      ${overtime.length ? months.map((m) => {
+        const list = overtime.filter((e) => (e.worked_on || `${y}-01-01`).startsWith(m));
+        const byPerson = [...new Set(list.map((e) => e.person_id))].map((pid) => `${esc(person(pid)?.name)} ${num(list.filter((e) => e.person_id === pid).reduce((s, e) => s + Number(e.days), 0))}`).join(" · ");
+        return `<div class="small" style="margin-top:8px"><b>${fmt(m + "-01", { month: "long" })}</b> <span class="muted">· ${byPerson}</span></div><ul class="list">${list.map(extraItem).join("")}</ul>`;
+      }).join("") : `<p class="muted small">Extra days paid as overtime show here month by month, ready for wages.</p>`}</div>`;
 
     const rows = activePeople().filter((p) => p.tracks_holiday).map((p) => {
       const a = allowance(p, y);
@@ -500,7 +517,7 @@ function renderHolidays() {
     const anyShort = activePeople().some((p) => p.tracks_holiday && allowance(p, y).short);
     const christmasSet = S.closures.some((c) => c.kind === "closure" && c.day.startsWith(`${y}-12`));
     html += `<div class="card"><h2>Everyone's holiday</h2><div class="scroll" style="background:none"><table class="simple"><thead><tr><th>Name</th><th class="num">Choose</th><th class="num">Booked</th><th class="num">Waiting</th><th class="num">Left</th><th class="num">Legal min.</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="muted small">"Legal min." adds chosen days to bank holidays and closures (in full for 5-day staff, who get them on top of their normal day off; a rough share for part-timers) and checks it against the legal 5.6 weeks.</p>
+      <p class="muted small">"Legal min." adds chosen days to bank holidays and closures and checks it against the legal 5.6 weeks. A bank holiday takes a day off everyone's week: 5 days go to 4, 2 days go to 1.</p>
       ${!christmasSet ? `<div class="msg warn">Christmas ${y} closure dates aren't set yet, so the legal check will look short until they are (People tab).</div>` : anyShort ? `<div class="msg warn">Someone's below the legal minimum for ${y}. Adding a day or two to their chosen days, or to the Christmas closure, fixes it.</div>` : ""}</div>`;
   }
 
@@ -534,22 +551,43 @@ function renderHolidays() {
 }
 
 function extraSheet(y) {
-  const people = activePeople().filter((p) => p.tracks_holiday);
-  openSheet(`<h2>Extra days in ${y}</h2>
-    <label>Who</label><select id="exWho">${people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
-    <div class="grid2"><div><label>Days</label><input type="number" id="exDays" step="0.5" value="1"></div>
-      <div><label>Why</label><select id="exWhy"><option>Carried over from ${y - 1}</option><option>Worked extra days</option><option>Other</option></select></div></div>
-    <label>Note (optional)</label><input id="exNote" maxlength="120" placeholder="e.g. covered Hull on 3 Saturdays">
-    <p class="muted small">Use a minus number to take days off someone's allowance.</p>
+  const people = activePeople().filter((p) => p.tracks_holiday || p.days_per_week > 0);
+  openSheet(`<h2>Add extra days</h2>
+    <label>Who</label><select id="exWho">${people.filter((p) => !p.is_admin || p.tracks_holiday).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
+    <label>What for</label><select id="exKind"><option value="worked">Worked an extra day</option><option value="carried_over">Holiday carried over from ${y - 1}</option><option value="other">Something else</option></select>
+    <div id="exWorked">
+      <label>Day worked</label><input type="date" id="exDate" value="${TODAY}">
+      <label class="check"><input type="radio" name="exPay" value="overtime" checked> Paid as overtime</label>
+      <label class="check"><input type="radio" name="exPay" value="in_lieu"> Day off in lieu (adds a day to their holiday)</label>
+    </div>
+    <label>Days</label><input type="number" id="exDays" step="0.5" value="1">
+    <label>Note (optional)</label><input id="exNote" maxlength="120" placeholder="e.g. covered Hull">
+    <p class="muted small" id="exHelp"></p>
     <div class="msg bad" id="exErr" hidden></div>
     <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" id="exSave">Add</button></div>`);
+  const kind = () => ($("exKind").value === "worked" ? $("sheet").querySelector("input[name=exPay]:checked").value : $("exKind").value);
+  const upd = () => {
+    $("exWorked").hidden = $("exKind").value !== "worked";
+    $("exHelp").textContent = { overtime: "A record for wages. Their holiday doesn't change.", in_lieu: "Adds these days to their holiday for the year of the day worked.",
+      carried_over: `Adds to their ${y} holiday. Use a minus number to take days off.`, other: "Adds to their holiday. Use a minus number to take days off." }[kind()];
+  };
+  $("exKind").onchange = upd;
+  $("sheet").querySelectorAll("input[name=exPay]").forEach((r) => (r.onchange = upd));
+  upd();
   $("exSave").onclick = async () => {
+    const err = (m) => { $("exErr").hidden = false; $("exErr").textContent = m; };
     const days = Number($("exDays").value);
-    if (!days) { $("exErr").hidden = false; $("exErr").textContent = "Enter how many days."; return; }
+    if (!days) return err("Enter how many days.");
+    const k = kind();
+    const worked = $("exKind").value === "worked";
+    if (worked && !$("exDate").value) return err("Pick the day they worked.");
+    if (worked && days < 0) return err("Days worked can't be a minus number.");
     const note = $("exNote").value.trim();
-    const reason = $("exWhy").value + (note ? ` (${note})` : "");
-    try { $("exSave").disabled = true; await api.addExtra({ person_id: $("exWho").value, year: y, days, reason }); closeSheet(); await reload(); }
-    catch (e) { $("exSave").disabled = false; $("exErr").hidden = false; $("exErr").textContent = e.message; }
+    const label = { overtime: "Overtime", in_lieu: "Day in lieu", carried_over: `Carried over from ${y - 1}`, other: "Other" }[k];
+    const row = { person_id: $("exWho").value, year: worked ? Number($("exDate").value.slice(0, 4)) : y, days, kind: k,
+      worked_on: worked ? $("exDate").value : null, reason: label + (note ? ` (${note})` : "") };
+    try { $("exSave").disabled = true; await api.addExtra(row); closeSheet(); await reload(); }
+    catch (e) { $("exSave").disabled = false; err(e.message); }
   };
 }
 
@@ -601,7 +639,7 @@ function requestSheet(forPerson, asAdmin) {
     const closed = openDays(f, l).length !== [...Array(400).keys()].map((i) => addDays(f, i)).filter((d) => d <= l && !isSunday(d)).length;
     const a = allowance(p, Number(f.slice(0, 4)));
     $("rqHelp").textContent = kind !== "holiday" ? "Sickness and other time off don't come out of holiday."
-      : `Sundays${closed ? ", bank holidays and closures" : ""} don't count. ${p.days_per_week < 6 ? `At most ${Math.ceil(p.days_per_week)} a week (${p.name}'s working days). ` : ""}${num(a.left)} left to book in ${f.slice(0, 4)}.`;
+      : `Sundays${closed ? ", bank holidays and closures" : ""} don't count. ${p.days_per_week < 6 ? `At most ${Math.ceil(p.days_per_week)} a week (${p.name}'s working days), one fewer in a bank holiday week. ` : ""}${num(a.left)} left to book in ${f.slice(0, 4)}.`;
   };
   ["rqFirst", "rqLast"].forEach((i) => ($(i).oninput = () => { if ($("rqLast").value < $("rqFirst").value) $("rqLast").value = $("rqFirst").value; update(); }));
   if (asAdmin) { $("rqWho").onchange = update; $("rqKind").onchange = update; }
