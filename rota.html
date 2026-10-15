@@ -80,6 +80,23 @@
   .chip.sick { background: var(--danger-soft); color: var(--danger); }
   .chip.gap { background: var(--danger-soft); color: var(--danger); font-weight: 500; }
   .chip.clash { background: var(--warn-soft); color: var(--warn-ink); }
+  .chip.rest { background: var(--shade); color: var(--muted); }
+  .cal { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
+  .cal .hd { font-size: 12px; color: var(--muted); text-align: center; font-weight: 600; padding: 2px 0; }
+  .cal .day { background: var(--card); border-radius: 8px; min-height: 76px; padding: 4px; cursor: pointer; overflow: hidden; border: 2px solid transparent; min-width: 0; }
+  .cal .day.out { opacity: 0.45; }
+  .cal .day.today { border-color: var(--accent); }
+  .cal .day.closed { background: var(--shade); cursor: default; }
+  .cal .day.busy { opacity: 0.4; }
+  .cal .n { font-size: 12px; font-weight: 700; }
+  .cal .cl { font-size: 10px; color: var(--muted); line-height: 1.15; margin-top: 2px; }
+  .cal .chip { display: block; font-size: 11px; padding: 1px 4px; margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; }
+  .cal .chip.dim { opacity: 0.3; }
+  .seg { display: flex; gap: 6px; margin-top: 8px; }
+  .seg button { flex: 1; border: 2px solid var(--line); border-radius: 10px; padding: 9px 4px; font: inherit; font-weight: 600; background: var(--card); color: var(--ink); cursor: pointer; }
+  .seg button.on { border-color: currentColor; }
+  .seg button.rest.on { background: var(--shade); } .seg button.hol { color: var(--ok); } .seg button.hol.on { background: var(--ok-soft); }
+  .seg button.sick { color: var(--danger); } .seg button.sick.on { background: var(--danger-soft); }
   .p0 { background: var(--p0s); color: var(--p0); } .p1 { background: var(--p1s); color: var(--p1); }
   .p2 { background: var(--p2s); color: var(--p2); } .p3 { background: var(--p3s); color: var(--p3); }
   .p4 { background: var(--p4s); color: var(--p4); } .p5 { background: var(--p5s); color: var(--p5); }
@@ -88,6 +105,7 @@
   .choice { border: 2px solid transparent; border-radius: 12px; padding: 14px 10px; font: inherit; font-weight: 600; cursor: pointer; }
   .choice.on { border-color: currentColor; }
   .choice.off { background: var(--shade); color: var(--muted); }
+  .choice.hol { background: var(--ok-soft); color: var(--ok); }
   .list { list-style: none; margin: 0; padding: 0; }
   .list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
   .list li:last-child { border-bottom: none; }
@@ -145,7 +163,7 @@ const TODAY = iso(new Date());
 
 // ---- State -----------------------------------------------------------------------------------------
 const S = {
-  tab: "rota", week: monday(TODAY), year: Number(TODAY.slice(0, 4)),
+  tab: "rota", week: monday(TODAY), year: Number(TODAY.slice(0, 4)), month: TODAY.slice(0, 7), booking: { personId: "", kind: "rest" }, saving: false,
   places: [], people: [], shifts: [], leave: [], closures: [], logins: [], extras: [], me: null,
 };
 const isAdmin = () => !!S.me?.is_admin;
@@ -167,14 +185,40 @@ function openDays(first, last) {
 const closuresInWeek = (mon) => S.closures.filter((c) => c.day >= mon && c.day < addDays(mon, 6)).length;
 /** Days someone works in a week: a bank holiday takes one of them, so 5 days go to 4 and 2 go to 1. */
 const workingDays = (p, mon) => Math.max(0, (Math.ceil(Number(p.days_per_week)) || 0) - closuresInWeek(mon));
-/** Holiday days a request uses: open days, at most the person's working days in any one week. */
-function daysUsed(p, first, last) {
-  const weeks = new Map();
-  for (const d of openDays(first, last)) weeks.set(monday(d), (weeks.get(monday(d)) || 0) + 1);
+const counts = (l) => l.status === "approved" || l.status === "requested";
+const openDay = (d) => !isSunday(d) && !closureOn(d);
+/**
+ * Holiday each booking uses in the week from Monday `mon`. 5-day staff choose their weekly day off, so
+ * the first day off in a week (a booked day off, or else the earliest holiday day) is free and the rest
+ * is holiday, up to the days they'd have worked. Part-timers have set days, so each day off is holiday,
+ * less one for each bank holiday that week (2 days go to 1).
+ */
+function weekSplit(p, mon, leaves) {
+  const open = [0, 1, 2, 3, 4, 5].map((i) => addDays(mon, i)).filter((d) => !closureOn(d));
+  const mine = leaves.filter((l) => l.person_id === p.id && (l.kind === "holiday" || l.kind === "rest") && counts(l));
+  let rest = 0;
+  const hol = [];
+  for (const d of open) {
+    const l = mine.find((x) => x.first_day <= d && x.last_day >= d);
+    if (l?.kind === "rest") rest++; else if (l) hol.push(l.id);
+  }
+  const working = workingDays(p, mon);
+  const total = Number(p.days_per_week) >= 5
+    ? Math.min(working, Math.max(0, hol.length - Math.max(0, open.length - working - rest)))
+    : Math.max(0, Math.min(hol.length, Math.ceil(Number(p.days_per_week)) || 0) - closuresInWeek(mon));
+  const out = new Map();
+  hol.forEach((id, i) => out.set(id, (out.get(id) || 0) + (i >= hol.length - total ? 1 : 0)));
+  return out;
+}
+/** Holiday days a booking uses, counted week by week alongside the person's other bookings. */
+function holidayDays(p, booking, leaves = S.leave) {
+  if (booking.kind !== "holiday") return 0;
+  const all = leaves.filter((l) => l.id !== booking.id).concat(booking);
   let n = 0;
-  for (const [mon, c] of weeks) n += Math.min(c, workingDays(p, mon));
+  for (let mon = monday(booking.first_day); mon <= booking.last_day; mon = addDays(mon, 7)) n += weekSplit(p, mon, all).get(booking.id) || 0;
   return n;
 }
+const daysUsed = (p, first, last) => holidayDays(p, { id: "new", person_id: p.id, kind: "holiday", status: "requested", first_day: first, last_day: last });
 function allowance(p, year) {
   const mine = S.leave.filter((l) => l.person_id === p.id && l.kind === "holiday" && l.first_day.startsWith(String(year)));
   const used = mine.filter((l) => l.status === "approved").reduce((s, l) => s + Number(l.days), 0);
@@ -215,13 +259,16 @@ function supaApi() {
     async resetPassword(email) { must(await db.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })); },
     async claim() { must(await db.rpc("rota_claim")); },
     async load(userId) {
+      // Weekly days off pile up, so only those from last year on; holidays and the rest all load.
+      const cut = `${Number(TODAY.slice(0, 4)) - 1}-01-01`;
+      const paged = async (q) => { const out = []; for (let i = 0; ; i += 1000) { const rows = must(await q().range(i, i + 999)); out.push(...rows); if (rows.length < 1000) return out; } };
       const [places, people, closures, leave] = await Promise.all([
         db.from("rota_places").select("*").order("sort"),
         db.from("rota_people").select("*").order("sort").order("name"),
         db.from("rota_closures").select("*").order("day"),
-        db.from("rota_leave").select("*").order("first_day"),
+        paged(() => db.from("rota_leave").select("*").or(`kind.neq.rest,last_day.gte.${cut}`).order("first_day").order("id")),
       ]);
-      const data = { places: must(places), people: must(people), closures: must(closures), leave: must(leave) };
+      const data = { places: must(places), people: must(people), closures: must(closures), leave };
       data.me = data.people.find((p) => p.user_id === userId) ?? null;
       data.logins = data.me?.is_admin ? must(await db.from("rota_logins").select("*")) : [];
       data.extras = data.me ? must(await db.from("rota_extra_days").select("*").order("created_at")) : [];
@@ -236,6 +283,7 @@ function supaApi() {
       }
     },
     async addShifts(rows) { if (rows.length) must(await db.from("rota_shifts").upsert(rows, { onConflict: "person_id,day,place_id", ignoreDuplicates: true })); },
+    async clearShifts(personId, from, to) { must(await db.from("rota_shifts").delete().eq("person_id", personId).gte("day", from).lte("day", to)); },
     async addLeave(row) { must(await db.from("rota_leave").insert(row)); },
     async updateLeave(id, patch) { must(await db.from("rota_leave").update(patch).eq("id", id)); },
     async cancelLeave(id) { must(await db.rpc("rota_cancel_request", { p_id: id })); },
@@ -278,6 +326,10 @@ function demoApi(as) {
     { id: id(), person_id: "pe_tony", first_day: `${wk.slice(0, 4)}-07-20`, last_day: `${wk.slice(0, 4)}-07-31`, days: 10, kind: "holiday", status: "approved", note: null, created_at: TODAY },
   ];
   shifts.splice(0, shifts.length, ...shifts.filter((s) => !(s.person_id === "pe_ross" && s.day === addDays(wk, 3))));
+  // Weekly days off for the 5-day staff, last week and this.
+  for (const start of [prev, wk]) for (const [name, i] of [["ross", 5], ["kyle", 3], ["jamie", 2], ["lewis", 5], ["tony", 0]]) {
+    leave.push({ id: id(), person_id: "pe_" + name, first_day: addDays(start, i), last_day: addDays(start, i), days: 0, kind: "rest", status: "approved", note: null, created_at: TODAY });
+  }
   const closures = [];
   const store = { places, people, shifts, leave, closures, logins: [{ person_id: "pe_ross", email: "ross@example.com" }],
     extras: [{ id: id(), person_id: "pe_kyle", year: Number(TODAY.slice(0, 4)), days: 4, kind: "carried_over", worked_on: null, reason: "Carried over" },
@@ -297,6 +349,7 @@ function demoApi(as) {
       placeIds.forEach((place_id) => shifts.push({ id: id(), person_id: personId, day, place_id }));
     },
     async addShifts(rows) { rows.forEach((r) => { if (!shifts.some((s) => s.person_id === r.person_id && s.day === r.day && s.place_id === r.place_id)) shifts.push({ id: id(), ...r }); }); },
+    async clearShifts(personId, from, to) { for (let i = shifts.length - 1; i >= 0; i--) if (shifts[i].person_id === personId && shifts[i].day >= from && shifts[i].day <= to) shifts.splice(i, 1); },
     async addLeave(row) { leave.push({ id: id(), created_at: TODAY, ...row }); },
     async updateLeave(lid, patch) { Object.assign(leave.find((l) => l.id === lid), patch); },
     async cancelLeave(lid) { Object.assign(leave.find((l) => l.id === lid), { status: "cancelled" }); },
@@ -335,7 +388,7 @@ async function loadWeek() {
 
 // ---- Screens ------------------------------------------------------------------------------------------
 function setTabs() {
-  const tabs = isAdmin() ? [["rota", "Rota"], ["holidays", "Holidays"], ["people", "People"]] : [["rota", "Rota"], ["holidays", "Holidays"]];
+  const tabs = [["rota", "Rota"], ["calendar", "Calendar"], ["holidays", "Holidays"], ...(isAdmin() ? [["people", "People"]] : [])];
   $("tabs").hidden = false;
   $("tabs").innerHTML = tabs.map(([k, t]) => `<button data-tab="${k}" class="${S.tab === k ? "on" : ""}">${t}</button>`).join("");
   $("tabs").onclick = (e) => { const t = e.target.dataset.tab; if (t) { S.tab = t; render(); } };
@@ -346,6 +399,7 @@ function render() {
   $("who").textContent = S.me ? S.me.name : "";
   $("menuBtn").hidden = false;
   if (S.tab === "holidays") renderHolidays();
+  else if (S.tab === "calendar") renderCalendar();
   else if (S.tab === "people" && isAdmin()) renderPeople();
   else renderRota();
 }
@@ -354,6 +408,7 @@ function chipsFor(p, d) {
   const out = [];
   for (const l of leaveOn(p.id, d)) {
     if (l.kind === "holiday") out.push(`<span class="chip ${l.status === "approved" ? "hol" : "req"}">${l.status === "approved" ? "Holiday" : "Hol?"}</span>`);
+    else if (l.kind === "rest") out.push(`<span class="chip rest">Day off</span>`);
     else out.push(`<span class="chip sick">${l.kind === "sick" ? "Sick" : "Off"}</span>`);
   }
   for (const s of S.shifts.filter((s) => s.person_id === p.id && s.day === d)) {
@@ -418,7 +473,7 @@ function renderRota() {
   }
   html += `</tbody></table></div>`;
   html += `<div class="legend muted">${S.places.filter((p) => p.active).map((pl) => `<span class="chip ${placeClass(pl)}">${esc(shortName(pl.name))}</span>${esc(pl.name)}`).join(" &nbsp; ")}
-    &nbsp; <span class="chip hol">Holiday</span> &nbsp; <span class="chip req">Hol?</span> waiting</div>`;
+    &nbsp; <span class="chip rest">Day off</span> &nbsp; <span class="chip hol">Holiday</span> &nbsp; <span class="chip req">Hol?</span> waiting</div>`;
   if (admin) html += `<div class="row" style="margin-top:12px"><button class="btn ghost" id="copyWeek">Copy last week into empty boxes</button></div>`;
   $("app").innerHTML = html;
 
@@ -443,35 +498,192 @@ function myWeekCard(days) {
 function editCell(p, d) {
   const current = S.shifts.filter((s) => s.person_id === p.id && s.day === d).map((s) => s.place_id);
   const off = leaveOn(p.id, d);
-  const note = off.length ? `<div class="msg warn">${esc(p.name)} has ${off.map((l) => l.status === "approved" ? (l.kind === "holiday" ? "a holiday" : l.kind === "sick" ? "sick leave" : "time off") : "a holiday request waiting").join(" and ")} that day.</div>` : "";
-  // One shop a day: tap where they are and it's saved.
+  const booked = off.find((l) => l.status === "approved" && (l.kind === "rest" || l.kind === "holiday"));
+  const note = off.length ? `<div class="msg warn">${esc(p.name)} has ${off.map((l) => l.status === "approved" ? ({ holiday: "a holiday", rest: "their day off", sick: "sick leave" }[l.kind] ?? "time off") : "a holiday request waiting").join(" and ")} that day.</div>` : "";
+  // One shop a day: tap where they are and it's saved. Day off and Holiday book it in the calendar too.
   openSheet(`
     <h2>${esc(p.name)} · ${dayLabel(d)}</h2>${note}
     <div class="choices">${S.places.filter((x) => x.active).map((pl) => `<button class="choice ${placeClass(pl)} ${current.includes(pl.id) ? "on" : ""}" data-place="${pl.id}">${esc(pl.name)}</button>`).join("")}
-      <button class="choice off ${current.length ? "" : "on"}" data-place="">Day off</button></div>
-    <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn ghost" data-close>Cancel</button></div>`);
+      <button class="choice off ${booked?.kind === "rest" ? "on" : ""}" data-book="rest">Day off</button>
+      <button class="choice hol ${booked?.kind === "holiday" ? "on" : ""}" data-book="holiday">Holiday</button></div>
+    <div class="row" style="margin-top:12px">${current.length || booked ? `<button class="btn danger" id="clearCell">Clear</button>` : ""}<span class="spacer"></span><button class="btn ghost" data-close>Cancel</button></div>`);
   const save = async (ids) => {
-    try { await api.setCell(p.id, d, ids); await loadWeek(); closeSheet(); render(); }
-    catch (e) { alert("Couldn't save: " + e.message); }
+    try {
+      if (booked) await unbookDay(p, d);
+      await api.setCell(p.id, d, ids);
+      closeSheet();
+      if (booked) await refresh(p, d); else { await loadWeek(); render(); }
+    } catch (e) { alert("Couldn't save: " + e.message); }
   };
-  $("sheet").querySelectorAll("[data-place]").forEach((b) => (b.onclick = () => save(b.dataset.place ? [b.dataset.place] : [])));
+  $("sheet").querySelectorAll("[data-place]").forEach((b) => (b.onclick = () => save([b.dataset.place])));
+  $("sheet").querySelectorAll("[data-book]").forEach((b) => (b.onclick = () => { closeSheet(); setDay(p, d, b.dataset.book); }));
+  if ($("clearCell")) $("clearCell").onclick = () => save([]);
 }
 
 async function copyLastWeek() {
   const prev = addDays(S.week, -7);
   const rows = [];
+  // Weekly days off carry over to the same day, unless something's already booked or the shop's shut.
+  const rests = [];
+  for (const l of S.leave.filter((l) => l.kind === "rest" && l.status === "approved" && l.last_day >= prev && l.first_day < S.week)) {
+    for (let d = l.first_day < prev ? prev : l.first_day; d <= l.last_day && d < S.week; d = addDays(d, 1)) {
+      const day = addDays(d, 7);
+      if (!person(l.person_id)?.active || !openDay(day) || leaveOn(l.person_id, day).length) continue;
+      if (S.shifts.some((x) => x.person_id === l.person_id && x.day === day)) continue;
+      rests.push({ person_id: l.person_id, day });
+    }
+  }
   for (const s of S.shifts.filter((s) => s.day >= prev && s.day < S.week)) {
     const day = addDays(s.day, 7);
     const p = person(s.person_id);
     if (!p?.active || closureOn(day)) continue;
+    if (rests.some((r) => r.person_id === s.person_id && r.day === day)) continue;
     if (S.shifts.some((x) => x.person_id === s.person_id && x.day === day)) continue; // keep what's already there
     if (leaveOn(s.person_id, day).some((l) => l.status === "approved")) continue;
     rows.push({ person_id: s.person_id, day, place_id: s.place_id });
   }
-  if (!rows.length) { alert("Nothing to copy: last week is empty, or every box this week is already filled."); return; }
-  if (!confirm(`Copy ${rows.length} shift${rows.length === 1 ? "" : "s"} from last week into the empty boxes? People on holiday are skipped.`)) return;
-  try { await api.addShifts(rows); await loadWeek(); render(); } catch (e) { alert("Couldn't copy: " + e.message); }
+  if (!rows.length && !rests.length) { alert("Nothing to copy: last week is empty, or every box this week is already filled."); return; }
+  const what = [rows.length && `${rows.length} shift${rows.length === 1 ? "" : "s"}`, rests.length && `${rests.length} day${rests.length === 1 ? "" : "s"} off`].filter(Boolean).join(" and ");
+  if (!confirm(`Copy ${what} from last week into the empty boxes? People on holiday are skipped.`)) return;
+  try {
+    await api.addShifts(rows);
+    const now = new Date().toISOString();
+    for (const r of rests) await api.addLeave({ person_id: r.person_id, first_day: r.day, last_day: r.day, days: 0, kind: "rest", status: "approved", decided_at: now, note: null });
+    if (rests.length) { await reloadData(); for (const pid of new Set(rests.map((r) => r.person_id))) await recount(person(pid), [S.week]); }
+    else await loadWeek();
+    render();
+  } catch (e) { alert("Couldn't copy: " + e.message); }
 }
+
+// ---- Calendar: days off and holidays, linked to the rota ------------------------------------------------
+const KIND = { rest: ["Day off", "rest"], holiday: ["Holiday", "hol"], sick: ["Sick", "sick"] };
+const addMonths = (m, n) => { const [y, mo] = m.split("-").map(Number); return iso(new Date(y, mo - 1 + n, 1)).slice(0, 7); };
+const firstName = (p) => (p?.name ?? "?").split(" ")[0];
+const chipClass = (l) => (l.kind === "holiday" ? (l.status === "approved" ? "hol" : "req") : l.kind === "rest" ? "rest" : "sick");
+
+function renderCalendar() {
+  const admin = isAdmin();
+  const m = S.month;
+  const start = monday(`${m}-01`);
+  const end = addDays(monday(addDays(`${addMonths(m, 1)}-01`, -1)), 5);
+  const B = S.booking;
+  const bp = admin && B.personId ? person(B.personId) : null;
+  let html = `<div class="weeknav"><button id="prevMonth" aria-label="Previous month">‹</button>
+    <div class="label">${fmt(m + "-01", { month: "long", year: "numeric" })}<small>${m === TODAY.slice(0, 7) ? "This month" : `<a href="#" id="thisMonth">Back to this month</a>`}</small></div>
+    <button id="nextMonth" aria-label="Next month">›</button></div>`;
+
+  if (admin) {
+    let hint = "Pick someone, then tap days to book them off. Tap a day again to clear it. It goes straight onto the rota.";
+    if (bp) {
+      const a = bp.tracks_holiday ? allowance(bp, Number(m.slice(0, 4))) : null;
+      hint = `Tap days to give ${esc(bp.name)} ${{ rest: "their day off", holiday: "holiday", sick: "sick days" }[B.kind]}. Tap again to clear.${a ? ` <b>${num(a.left)}</b> holiday days left in ${m.slice(0, 4)}.` : ""}`;
+    }
+    html += `<div class="card"><select id="bkWho"><option value="">Just looking: tap a day to see who's off</option>${activePeople().filter((p) => p.days_per_week > 0 || p.tracks_holiday).map((p) => `<option value="${p.id}" ${p.id === B.personId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
+      ${bp ? `<div class="seg">${Object.entries(KIND).map(([k, [label, cls]]) => `<button class="${cls} ${B.kind === k ? "on" : ""}" data-kind="${k}">${label}</button>`).join("")}</div>` : ""}
+      <p class="muted small" style="margin:8px 0 0">${hint}</p></div>`;
+  }
+
+  html += `<div class="cal">${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => `<div class="hd">${d}</div>`).join("")}`;
+  for (let wk = start; wk <= end; wk = addDays(wk, 7)) {
+    for (let i = 0; i < 6; i++) {
+      const d = addDays(wk, i);
+      const c = closureOn(d);
+      const cls = ["day", d.startsWith(m) ? "" : "out", d === TODAY ? "today" : "", c ? "closed" : ""].join(" ");
+      let inner = `<div class="n">${Number(d.slice(8))}</div>`;
+      if (c) inner += `<div class="cl">${esc(c.name)}</div>`;
+      else {
+        const off = S.leave.filter((l) => counts(l) && l.first_day <= d && l.last_day >= d && person(l.person_id)?.active)
+          .sort((a, b) => (person(a.person_id).sort - person(b.person_id).sort) || person(a.person_id).name.localeCompare(person(b.person_id).name));
+        inner += off.map((l) => `<span class="chip ${chipClass(l)} ${bp && l.person_id !== bp.id ? "dim" : ""}" title="${esc(person(l.person_id).name)}: ${KIND[l.kind]?.[0] ?? "Off"}">${esc(firstName(person(l.person_id)))}</span>`).join("");
+      }
+      html += `<div class="${cls}" data-day="${d}">${inner}</div>`;
+    }
+  }
+  html += `</div><div class="legend muted"><span class="chip rest">Name</span> day off &nbsp; <span class="chip hol">Name</span> holiday &nbsp; <span class="chip req">Name</span> holiday asked for${admin ? ` &nbsp; <span class="chip sick">Name</span> sick or other` : ""}</div>`;
+  $("app").innerHTML = html;
+
+  $("prevMonth").onclick = () => { S.month = addMonths(S.month, -1); render(); };
+  $("nextMonth").onclick = () => { S.month = addMonths(S.month, 1); render(); };
+  if ($("thisMonth")) $("thisMonth").onclick = (e) => { e.preventDefault(); S.month = TODAY.slice(0, 7); render(); };
+  if ($("bkWho")) $("bkWho").onchange = () => { B.personId = $("bkWho").value; render(); };
+  $("app").querySelectorAll("[data-kind]").forEach((b) => (b.onclick = () => { B.kind = b.dataset.kind; render(); }));
+  $("app").querySelectorAll(".cal .day").forEach((cell) => (cell.onclick = () => {
+    const d = cell.dataset.day;
+    if (closureOn(d)) return;
+    if (!bp) return daySheet(d);
+    if (S.saving) return;
+    cell.classList.add("busy");
+    const has = S.leave.find((l) => l.person_id === bp.id && counts(l) && l.first_day <= d && l.last_day >= d);
+    setDay(bp, d, has?.kind === B.kind ? null : B.kind);
+  }));
+}
+
+/** Who's off on one day, with the manager's buttons to clear a day or book someone. */
+function daySheet(d) {
+  const admin = isAdmin();
+  const off = S.leave.filter((l) => counts(l) && l.first_day <= d && l.last_day >= d && person(l.person_id)?.active);
+  const items = off.map((l) => `<li class="row"><b>${esc(person(l.person_id).name)}</b><span class="chip ${chipClass(l)}">${l.status === "requested" ? "Holiday asked for" : KIND[l.kind]?.[0] ?? "Off"}</span>
+    ${l.first_day !== l.last_day ? `<span class="muted small">${dayLabel(l.first_day)} – ${dayLabel(l.last_day)}</span>` : ""}<span class="spacer"></span>
+    ${admin && l.status === "approved" ? `<button class="btn danger" data-clear="${l.person_id}">Clear this day</button>` : ""}</li>`).join("");
+  openSheet(`<h2>${fmt(d, { weekday: "long", day: "numeric", month: "long" })}</h2>
+    ${items ? `<ul class="list">${items}</ul>` : `<p class="muted">Nobody's off.</p>`}
+    ${admin ? `<label>Book someone off</label><select id="dsWho">${activePeople().filter((p) => (p.days_per_week > 0 || p.tracks_holiday) && !off.some((l) => l.person_id === p.id)).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
+      <div class="seg">${Object.entries(KIND).map(([k, [label, cls]]) => `<button class="${cls}" data-dsbook="${k}">${label}</button>`).join("")}</div>` : ""}
+    <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn ghost" data-close>Close</button></div>`);
+  $("sheet").querySelectorAll("[data-clear]").forEach((b) => (b.onclick = () => { closeSheet(); setDay(person(b.dataset.clear), d, null); }));
+  $("sheet").querySelectorAll("[data-dsbook]").forEach((b) => (b.onclick = () => { const p = person($("dsWho").value); if (!p) return; closeSheet(); setDay(p, d, b.dataset.dsbook); }));
+}
+
+// ---- Booking single days (calendar and rota) ------------------------------------------------------------
+const nextOpen = (d) => { for (let i = 0; i < 30; i++) { d = addDays(d, 1); if (openDay(d)) break; } return d; };
+const prevOpen = (d) => { for (let i = 0; i < 30; i++) { d = addDays(d, -1); if (openDay(d)) break; } return d; };
+/** A range trimmed to open days at each end, or null if none are left. */
+function tidyRange(first, last) {
+  while (first <= last && !openDay(first)) first = addDays(first, 1);
+  while (last >= first && !openDay(last)) last = addDays(last, -1);
+  return first <= last ? [first, last] : null;
+}
+/** Takes one day out of whatever booking covers it: shortens it, splits it, or removes it. */
+async function unbookDay(p, d) {
+  const cur = S.leave.find((l) => l.person_id === p.id && counts(l) && l.first_day <= d && l.last_day >= d);
+  if (!cur) return;
+  const left = tidyRange(cur.first_day, addDays(d, -1)), right = tidyRange(addDays(d, 1), cur.last_day);
+  if (!left && !right) return api.deleteLeave(cur.id);
+  const keep = left ?? right;
+  await api.updateLeave(cur.id, { first_day: keep[0], last_day: keep[1] });
+  if (left && right) await api.addLeave({ person_id: cur.person_id, first_day: right[0], last_day: right[1], days: 0, kind: cur.kind, status: cur.status, decided_at: cur.decided_at, note: cur.note });
+}
+/** Books one day, joining it onto a booking of the same kind either side so a week off stays one entry. */
+async function bookDay(p, d, kind) {
+  const cur = S.leave.find((l) => l.person_id === p.id && counts(l) && l.first_day <= d && l.last_day >= d);
+  if (cur?.kind === kind) return;
+  if (cur) await unbookDay(p, d);
+  const same = S.leave.filter((l) => l !== cur && l.person_id === p.id && l.kind === kind && l.status === "approved");
+  const before = same.find((l) => l.last_day >= prevOpen(d) && l.last_day < d);
+  const after = same.find((l) => l.first_day > d && l.first_day <= nextOpen(d));
+  if (before && after) { await api.updateLeave(before.id, { last_day: after.last_day }); await api.deleteLeave(after.id); }
+  else if (before) await api.updateLeave(before.id, { last_day: d });
+  else if (after) await api.updateLeave(after.id, { first_day: d });
+  else await api.addLeave({ person_id: p.id, first_day: d, last_day: d, days: 0, kind, status: "approved", decided_at: new Date().toISOString(), note: null });
+}
+/** Books (or with kind null, clears) one day off and takes them off the rota that day. */
+async function setDay(p, d, kind) {
+  S.saving = true;
+  try {
+    if (kind) { await bookDay(p, d, kind); await api.clearShifts(p.id, d, d); }
+    else await unbookDay(p, d);
+    await refresh(p, d);
+  } catch (e) { alert("Couldn't save: " + e.message); await reload(); }
+  finally { S.saving = false; }
+}
+/** Holiday counts follow the week's days off, so recount that person's bookings in the week. */
+async function recount(p, mons) {
+  if (!p) return;
+  const hit = S.leave.filter((l) => l.person_id === p.id && l.kind === "holiday" && counts(l) && mons.some((m) => l.first_day <= addDays(m, 5) && l.last_day >= m));
+  for (const l of hit) { const n = holidayDays(p, l); if (n !== Number(l.days)) { await api.updateLeave(l.id, { days: n }); l.days = n; } }
+}
+async function reloadData() { const session = await api.session(); await loadAll(session?.user?.id); }
+async function refresh(p, d) { await reloadData(); await recount(person(p.id), [monday(d)]); render(); }
 
 // ---- Holidays -------------------------------------------------------------------------------------------
 function renderHolidays() {
@@ -485,7 +697,7 @@ function renderHolidays() {
       <div class="stats"><div><b>${num(a.left)}</b>left to book</div><div><b>${num(a.used)}</b>booked</div><div><b>${num(a.waiting)}</b>waiting</div></div>
       <p class="muted small">You choose ${num(a.base)} days a year${a.extra ? `, plus ${a.extras.map((e) => `${num(e.days)} ${esc(e.reason.toLowerCase())}`).join(" and ")} this year` : ""}. Bank holidays and the Christmas closure are given on top.</p>
       <button class="btn" id="askOff">Request time off</button></div>`;
-    const mine = S.leave.filter((l) => l.person_id === S.me.id && l.first_day.startsWith(String(y))).sort((a, b) => b.first_day.localeCompare(a.first_day));
+    const mine = S.leave.filter((l) => l.person_id === S.me.id && l.kind !== "rest" && l.first_day.startsWith(String(y))).sort((a, b) => b.first_day.localeCompare(a.first_day));
     html += `<div class="card"><h2>My requests</h2>${mine.length ? `<ul class="list">${mine.map((l) => leaveItem(l, { own: true })).join("")}</ul>` : `<p class="muted">None this year.</p>`}</div>`;
   }
 
@@ -523,7 +735,7 @@ function renderHolidays() {
 
   // Who's off soon: everyone sees approved holidays; admins also see sickness and requests.
   const from = TODAY, to = addDays(TODAY, 90);
-  const soon = S.leave.filter((l) => l.last_day >= from && l.first_day <= to && (l.status === "approved" || (admin && l.status === "requested")))
+  const soon = S.leave.filter((l) => l.kind !== "rest" && l.last_day >= from && l.first_day <= to && (l.status === "approved" || (admin && l.status === "requested")))
     .sort((a, b) => a.first_day.localeCompare(b.first_day));
   html += `<div class="card"><h2>Who's off in the next 3 months</h2>${soon.length ? `<ul class="list">${soon.map((l) => leaveItem(l, {})).join("")}</ul>` : `<p class="muted">Nobody yet.</p>`}</div>`;
   if (!S.me?.tracks_holiday && !admin) html += `<p class="muted">Your holiday isn't tracked here.</p>`;
@@ -622,7 +834,7 @@ function requestSheet(forPerson, asAdmin) {
   openSheet(`
     <h2>${asAdmin ? "Add time off" : "Request time off"}</h2>
     ${asAdmin ? `<label>Who</label><select id="rqWho">${people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
-      <label>What</label><select id="rqKind"><option value="holiday">Holiday</option><option value="sick">Sick</option><option value="other">Other time off</option></select>` : ""}
+      <label>What</label><select id="rqKind"><option value="holiday">Holiday</option><option value="rest">Weekly day off</option><option value="sick">Sick</option><option value="other">Other time off</option></select>` : ""}
     <div class="grid2"><div><label>First day off</label><input type="date" id="rqFirst" value="${addDays(TODAY, 1)}"></div><div><label>Last day off</label><input type="date" id="rqLast" value="${addDays(TODAY, 1)}"></div></div>
     <label>Holiday days this uses</label><input type="number" id="rqDays" min="0" step="0.5" ${asAdmin ? "" : "readonly"}>
     <p class="muted small" id="rqHelp"></p>
@@ -638,8 +850,8 @@ function requestSheet(forPerson, asAdmin) {
     $("rqDays").value = n;
     const closed = openDays(f, l).length !== [...Array(400).keys()].map((i) => addDays(f, i)).filter((d) => d <= l && !isSunday(d)).length;
     const a = allowance(p, Number(f.slice(0, 4)));
-    $("rqHelp").textContent = kind !== "holiday" ? "Sickness and other time off don't come out of holiday."
-      : `Sundays${closed ? ", bank holidays and closures" : ""} don't count. ${p.days_per_week < 6 ? `At most ${Math.ceil(p.days_per_week)} a week (${p.name}'s working days), one fewer in a bank holiday week. ` : ""}${num(a.left)} left to book in ${f.slice(0, 4)}.`;
+    $("rqHelp").textContent = kind === "rest" ? "A weekly day off. It doesn't use holiday." : kind !== "holiday" ? "Sickness and other time off don't come out of holiday."
+      : `Sundays${closed ? ", bank holidays and closures" : ""} don't count.${p.days_per_week >= 5 ? " The first day off in a week is the normal weekly day off, so it's free." : ""} ${p.days_per_week < 6 ? `At most ${Math.ceil(p.days_per_week)} a week (${p.name}'s working days), one fewer in a bank holiday week. ` : ""}${num(a.left)} left to book in ${f.slice(0, 4)}.`;
   };
   ["rqFirst", "rqLast"].forEach((i) => ($(i).oninput = () => { if ($("rqLast").value < $("rqFirst").value) $("rqLast").value = $("rqFirst").value; update(); }));
   if (asAdmin) { $("rqWho").onchange = update; $("rqKind").onchange = update; }
@@ -655,7 +867,12 @@ function requestSheet(forPerson, asAdmin) {
     if (kind === "holiday" && !asAdmin && days > a.left) return err(`That's ${num(days)} days but there are only ${num(a.left)} left to book.`);
     const row = { person_id: p.id, first_day: f, last_day: l, days, kind, note: $("rqNote").value.trim() || null, status: asAdmin ? "approved" : "requested" };
     if (asAdmin) row.decided_at = new Date().toISOString();
-    try { $("rqSend").disabled = true; await api.addLeave(row); closeSheet(); await reload(); }
+    try {
+      $("rqSend").disabled = true;
+      await api.addLeave(row);
+      if (asAdmin) await api.clearShifts(p.id, f, l); // they're off, so off the rota too
+      closeSheet(); await reload();
+    }
     catch (e) { $("rqSend").disabled = false; err("Couldn't send: " + e.message); }
   };
 }
