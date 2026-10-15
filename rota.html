@@ -173,11 +173,19 @@ function allowance(p, year) {
   const used = mine.filter((l) => l.status === "approved").reduce((s, l) => s + Number(l.days), 0);
   const waiting = mine.filter((l) => l.status === "requested").reduce((s, l) => s + Number(l.days), 0);
   const chosen = Number(p.chosen_days);
-  // The legal minimum is 5.6 weeks (28 days at most). Closures count towards it, roughly in
-  // proportion to how many of the six open days the person works.
+  // The legal minimum is 5.6 weeks (28 days at most). Full-timers get every bank holiday and
+  // closure day off on top of their normal day off, so each counts in full (at most their working
+  // days in any one week). Part-timers only gain the ones on their days: roughly their share of six.
   const dpw = Number(p.days_per_week);
-  const closures = S.closures.filter((c) => c.day.startsWith(String(year)) && !isSunday(c.day));
-  const given = chosen + closures.length * Math.min(1, dpw / 6);
+  const perWeek = new Map();
+  for (const c of S.closures) {
+    if (!c.day.startsWith(String(year)) || isSunday(c.day)) continue;
+    perWeek.set(monday(c.day), (perWeek.get(monday(c.day)) || 0) + 1);
+  }
+  const share = dpw >= 5 ? 1 : dpw / 6;
+  let fromClosures = 0;
+  for (const n of perWeek.values()) fromClosures += Math.min(n * share, dpw);
+  const given = chosen + fromClosures;
   const minimum = Math.min(28, 5.6 * dpw);
   const christmasSet = S.closures.some((c) => c.kind === "closure" && c.day.startsWith(`${year}-12`));
   return { chosen, used, waiting, left: chosen - used - waiting, given, minimum, short: given + 0.05 < minimum, christmasSet };
@@ -475,7 +483,7 @@ function renderHolidays() {
     const anyShort = activePeople().some((p) => p.tracks_holiday && allowance(p, y).short);
     const christmasSet = S.closures.some((c) => c.kind === "closure" && c.day.startsWith(`${y}-12`));
     html += `<div class="card"><h2>Everyone's holiday</h2><div class="scroll" style="background:none"><table class="simple"><thead><tr><th>Name</th><th class="num">Choose</th><th class="num">Booked</th><th class="num">Waiting</th><th class="num">Left</th><th class="num">Legal min.</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="muted small">"Legal min." estimates everything given in the year (chosen days plus their share of bank holidays and closures) against the legal 5.6 weeks for their days a week.</p>
+      <p class="muted small">"Legal min." adds chosen days to bank holidays and closures (in full for 5-day staff, who get them on top of their normal day off; a rough share for part-timers) and checks it against the legal 5.6 weeks.</p>
       ${!christmasSet ? `<div class="msg warn">Christmas ${y} closure dates aren't set yet, so the legal check will look short until they are (People tab).</div>` : anyShort ? `<div class="msg warn">Someone's below the legal minimum for ${y}. Adding a day or two to their chosen days, or to the Christmas closure, fixes it.</div>` : ""}</div>`;
   }
 
