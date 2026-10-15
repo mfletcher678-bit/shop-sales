@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#003661">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Rota">
+<title>Shop Rota</title>
+<style>
+  :root {
+    --navy: #003661; --accent: #003661; --bg: #eef1f5; --card: #ffffff; --ink: #1b1f24;
+    --muted: #6b7280; --line: #e3e7ec; --ok: #2e7d32; --ok-soft: #e3f1e4; --danger: #c62828;
+    --danger-soft: #fbe5e5; --warn-soft: #fff3cd; --warn-ink: #664d03; --shade: #f3f4f6;
+    --p0: #003661; --p0s: #dce7f2; --p1: #2e7d32; --p1s: #e0f0e1; --p2: #8a5a00; --p2s: #f7ead0;
+    --p3: #6a3d9a; --p3s: #ece3f5; --p4: #00707a; --p4s: #d8eff1; --p5: #9c2f5b; --p5s: #f6e0e9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --accent: #8fbbe8; --bg: #0e151d; --card: #17212c; --ink: #e7edf3; --muted: #93a3b5;
+      --line: #263341; --ok: #6cc070; --ok-soft: #1f3324; --danger: #ef6b6b; --danger-soft: #3a1f22;
+      --warn-soft: #3a3218; --warn-ink: #f0d58a; --shade: #1d2834;
+      --p0: #9cc1ef; --p0s: #1d2f44; --p1: #7fcf83; --p1s: #1e3322; --p2: #e6b862; --p2s: #3a2f18;
+      --p3: #c3a2ea; --p3s: #2e2440; --p4: #6fd0d8; --p4s: #163538; --p5: #ec92b6; --p5s: #3d1f2c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  header { background: var(--navy); color: #fff; padding: calc(env(safe-area-inset-top) + 14px) 16px 14px; display: flex; align-items: center; gap: 10px; }
+  header h1 { font-size: 20px; margin: 0; flex: 1; }
+  header .who { font-size: 14px; opacity: 0.85; }
+  header button { background: none; border: 1px solid rgba(255,255,255,0.4); color: #fff; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 14px; cursor: pointer; }
+  nav { display: flex; gap: 6px; padding: 10px 16px 0; max-width: 980px; margin: 0 auto; }
+  nav button { flex: 1; border: none; border-radius: 10px; padding: 10px; font: inherit; font-weight: 600; background: var(--card); color: var(--ink); cursor: pointer; }
+  nav button.on { background: var(--navy); color: #fff; }
+  @media (prefers-color-scheme: dark) { nav button.on { background: var(--accent); color: #0e151d; } }
+  main { max-width: 980px; margin: 0 auto; padding: 12px 16px calc(env(safe-area-inset-bottom) + 32px); }
+  .card { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  h2 { font-size: 18px; margin: 0 0 10px; }
+  h3 { font-size: 15px; margin: 14px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .muted { color: var(--muted); }
+  .small { font-size: 14px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .spacer { flex: 1; }
+  button.btn { border: none; border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 600; background: var(--navy); color: #fff; cursor: pointer; }
+  button.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  button.btn.ok { background: var(--ok); }
+  button.btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--line); }
+  button.btn:disabled { opacity: 0.45; cursor: default; }
+  @media (prefers-color-scheme: dark) { button.btn:not(.ghost):not(.danger) { color: #0e151d; background: var(--accent); } button.btn.ok { background: var(--ok); } }
+  input, select, textarea { font: inherit; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); width: 100%; }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
+  label.check { display: flex; align-items: center; gap: 10px; color: var(--ink); font-size: 16px; margin: 8px 0; }
+  label.check input { width: 22px; height: 22px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .msg { padding: 10px 12px; border-radius: 10px; margin: 10px 0; font-size: 15px; }
+  .msg.warn { background: var(--warn-soft); color: var(--warn-ink); }
+  .msg.bad { background: var(--danger-soft); color: var(--danger); }
+  .msg.good { background: var(--ok-soft); color: var(--ok); }
+  .weeknav { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .weeknav button { width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--card); color: var(--ink); font-size: 22px; cursor: pointer; }
+  .weeknav .label { flex: 1; text-align: center; font-weight: 600; font-size: 17px; }
+  .weeknav .label small { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
+  .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 14px; background: var(--card); }
+  table.rota { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 640px; }
+  table.rota th, table.rota td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
+  table.rota th { font-size: 13px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+  table.rota th.today { color: var(--accent); }
+  table.rota td.name, table.rota th.name { position: sticky; left: 0; background: var(--card); z-index: 1; font-weight: 600; min-width: 84px; }
+  table.rota td.name small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+  table.rota tr.me td.name { color: var(--accent); }
+  table.rota td.cell { min-width: 86px; height: 48px; }
+  table.rota td.cell.edit { cursor: pointer; }
+  table.rota td.cell.edit:hover { background: var(--shade); }
+  table.rota td.closed { background: var(--shade); color: var(--muted); font-size: 12px; }
+  table.rota tr.cover td { border-bottom: none; font-size: 12px; }
+  .chip { display: inline-block; border-radius: 7px; padding: 3px 7px; margin: 1px 2px 1px 0; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .chip.hol { background: var(--ok-soft); color: var(--ok); }
+  .chip.req { background: transparent; color: var(--ok); border: 1px dashed var(--ok); }
+  .chip.sick { background: var(--danger-soft); color: var(--danger); }
+  .chip.gap { background: var(--danger-soft); color: var(--danger); font-weight: 500; }
+  .chip.clash { background: var(--warn-soft); color: var(--warn-ink); }
+  .p0 { background: var(--p0s); color: var(--p0); } .p1 { background: var(--p1s); color: var(--p1); }
+  .p2 { background: var(--p2s); color: var(--p2); } .p3 { background: var(--p3s); color: var(--p3); }
+  .p4 { background: var(--p4s); color: var(--p4); } .p5 { background: var(--p5s); color: var(--p5); }
+  .legend { margin-top: 8px; font-size: 13px; }
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .list li:last-child { border-bottom: none; }
+  .big { font-size: 34px; font-weight: 700; color: var(--accent); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; }
+  .stats div { background: var(--shade); border-radius: 12px; padding: 10px 6px; }
+  .stats b { display: block; font-size: 24px; color: var(--accent); }
+  table.simple { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.simple th, table.simple td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+  table.simple td.num, table.simple th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .myweek li { display: flex; gap: 12px; align-items: center; }
+  .myweek .d { width: 92px; color: var(--muted); font-size: 15px; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
+  .modal[hidden] { display: none; }
+  .sheet { background: var(--card); width: 100%; max-width: 520px; border-radius: 18px 18px 0 0; padding: 18px 16px calc(env(safe-area-inset-bottom) + 18px); max-height: 90vh; overflow-y: auto; }
+  @media (min-width: 640px) { .modal { align-items: center; } .sheet { border-radius: 18px; } }
+  .login { max-width: 400px; margin: 40px auto; }
+  .demo { background: var(--warn-soft); color: var(--warn-ink); text-align: center; font-size: 14px; padding: 6px; }
+</style>
+</head>
+<body>
+<div id="demoBar" class="demo" hidden>Demo with made-up data. Nothing here is saved.</div>
+<header>
+  <h1>Shop Rota</h1>
+  <span class="who" id="who"></span>
+  <button id="menuBtn" hidden>Account</button>
+</header>
+<nav id="tabs" hidden></nav>
+<main id="app"><p class="muted">Loading…</p></main>
+<div id="modal" class="modal" hidden><div class="sheet" id="sheet"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+"use strict";
+// Rotas and holidays for Fletchers Cobblers Ltd and the shops it plans shifts for.
+// Everything lives in the rota_* tables; who sees and changes what is enforced by the database.
+const SUPABASE_URL = "https://hgoknavmxkaoolozzwkc.supabase.co";
+const SUPABASE_KEY = "sb_publishable_W7wlg7ZG_k_gYwbj1WcqCA_3JzDF_K3";
+// "admin" or "staff": made-up data for screenshots, only on a local preview (never on the published page).
+const DEMO = ["localhost", "127.0.0.1"].includes(location.hostname) ? new URLSearchParams(location.search).get("demo") : null;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const num = (n) => (Math.round(n * 10) / 10).toString();
+
+// ---- Dates (YYYY-MM-DD strings in local time) ---------------------------------------------------
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const parse = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+const monday = (s) => { const d = parse(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); };
+const isSunday = (s) => parse(s).getDay() === 0;
+const fmt = (s, o) => parse(s).toLocaleDateString("en-GB", o);
+const dayLabel = (s) => fmt(s, { weekday: "short", day: "numeric", month: "short" });
+const TODAY = iso(new Date());
+
+// ---- State -----------------------------------------------------------------------------------------
+const S = {
+  tab: "rota", week: monday(TODAY), year: Number(TODAY.slice(0, 4)),
+  places: [], people: [], shifts: [], leave: [], closures: [], logins: [], me: null,
+};
+const isAdmin = () => !!S.me?.is_admin;
+const person = (id) => S.people.find((p) => p.id === id);
+const place = (id) => S.places.find((p) => p.id === id);
+const activePeople = () => S.people.filter((p) => p.active);
+const closureOn = (d) => S.closures.find((c) => c.day === d);
+const placeClass = (pl) => "p" + (Math.max(0, S.places.indexOf(pl)) % 6);
+const shortName = (name) => (name.length > 6 ? name.slice(0, 5) + "." : name);
+
+// ---- Holiday sums ------------------------------------------------------------------------------------
+// Shops open Monday to Saturday; closures (bank holidays, Christmas) are given, not taken.
+function openDays(first, last) {
+  const out = [];
+  for (let d = first, i = 0; d <= last && i < 400; d = addDays(d, 1), i++) if (!isSunday(d) && !closureOn(d)) out.push(d);
+  return out;
+}
+/** Holiday days a request uses: open days, at most the person's working days in any one week. */
+function daysUsed(p, first, last) {
+  const cap = Math.ceil(Number(p.days_per_week)) || 0;
+  const weeks = new Map();
+  for (const d of openDays(first, last)) weeks.set(monday(d), (weeks.get(monday(d)) || 0) + 1);
+  let n = 0;
+  for (const c of weeks.values()) n += Math.min(c, cap);
+  return n;
+}
+function allowance(p, year) {
+  const mine = S.leave.filter((l) => l.person_id === p.id && l.kind === "holiday" && l.first_day.startsWith(String(year)));
+  const used = mine.filter((l) => l.status === "approved").reduce((s, l) => s + Number(l.days), 0);
+  const waiting = mine.filter((l) => l.status === "requested").reduce((s, l) => s + Number(l.days), 0);
+  const chosen = Number(p.chosen_days);
+  // The legal minimum is 5.6 weeks (28 days at most). Closures count towards it, roughly in
+  // proportion to how many of the six open days the person works.
+  const dpw = Number(p.days_per_week);
+  const closures = S.closures.filter((c) => c.day.startsWith(String(year)) && !isSunday(c.day));
+  const given = chosen + closures.length * Math.min(1, dpw / 6);
+  const minimum = Math.min(28, 5.6 * dpw);
+  const christmasSet = S.closures.some((c) => c.kind === "closure" && c.day.startsWith(`${year}-12`));
+  return { chosen, used, waiting, left: chosen - used - waiting, given, minimum, short: given + 0.05 < minimum, christmasSet };
+}
+const leaveOn = (personId, d) => S.leave.filter((l) => l.person_id === personId && l.first_day <= d && l.last_day >= d && (l.status === "approved" || l.status === "requested"));
+
+// ---- Data: Supabase, or made-up data for the demo ---------------------------------------------------
+function supaApi() {
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const must = (r) => { if (r.error) throw new Error(r.error.message); return r.data; };
+  return {
+    db,
+    async session() { return (await db.auth.getSession()).data.session; },
+    async signIn(email, password) { must(await db.auth.signInWithPassword({ email, password })); },
+    async signOut() { await db.auth.signOut(); },
+    async setPassword(password) { must(await db.auth.updateUser({ password })); },
+    async resetPassword(email) { must(await db.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })); },
+    async claim() { must(await db.rpc("rota_claim")); },
+    async load(userId) {
+      const [places, people, closures, leave] = await Promise.all([
+        db.from("rota_places").select("*").order("sort"),
+        db.from("rota_people").select("*").order("sort").order("name"),
+        db.from("rota_closures").select("*").order("day"),
+        db.from("rota_leave").select("*").order("first_day"),
+      ]);
+      const data = { places: must(places), people: must(people), closures: must(closures), leave: must(leave) };
+      data.me = data.people.find((p) => p.user_id === userId) ?? null;
+      data.logins = data.me?.is_admin ? must(await db.from("rota_logins").select("*")) : [];
+      return data;
+    },
+    async shifts(from, to) { return must(await db.from("rota_shifts").select("*").gte("day", from).lte("day", to)); },
+    async setCell(personId, day, placeIds) {
+      const del = db.from("rota_shifts").delete().eq("person_id", personId).eq("day", day);
+      must(placeIds.length ? await del.not("place_id", "in", `(${placeIds.join(",")})`) : await del);
+      if (placeIds.length) {
+        must(await db.from("rota_shifts").upsert(placeIds.map((place_id) => ({ person_id: personId, day, place_id })), { onConflict: "person_id,day,place_id", ignoreDuplicates: true }));
+      }
+    },
+    async addShifts(rows) { if (rows.length) must(await db.from("rota_shifts").upsert(rows, { onConflict: "person_id,day,place_id", ignoreDuplicates: true })); },
+    async addLeave(row) { must(await db.from("rota_leave").insert(row)); },
+    async updateLeave(id, patch) { must(await db.from("rota_leave").update(patch).eq("id", id)); },
+    async cancelLeave(id) { must(await db.rpc("rota_cancel_request", { p_id: id })); },
+    async deleteLeave(id) { must(await db.from("rota_leave").delete().eq("id", id)); },
+    async savePerson(p) { return must(await db.from("rota_people").upsert(p).select().single()); },
+    async saveLogin(personId, email) {
+      if (email) must(await db.from("rota_logins").upsert({ person_id: personId, email }));
+      else must(await db.from("rota_logins").delete().eq("person_id", personId));
+    },
+    async savePlace(p) { must(await db.from("rota_places").update({ needs_cover: p.needs_cover }).eq("id", p.id)); },
+    async addClosures(rows) { must(await db.from("rota_closures").upsert(rows)); },
+    async deleteClosure(day) { must(await db.from("rota_closures").delete().eq("day", day)); },
+  };
+}
+
+function demoApi(as) {
+  const id = () => Math.random().toString(36).slice(2);
+  const places = ["Pocklington", "Driffield", "Malton", "Scarborough", "Hull"].map((name, i) => ({ id: "pl" + i, name, needs_cover: true, sort: i, active: true }));
+  const P = (name, employer, dpw, chosen, home, extra = {}) => ({ id: "pe_" + name.toLowerCase(), name, employer, user_id: null, is_admin: false, days_per_week: dpw, chosen_days: chosen, tracks_holiday: true, home_place_id: home == null ? null : "pl" + home, sort: 0, active: true, ...extra });
+  const people = [
+    P("Owner", "Owner", 0, 0, null, { is_admin: true, tracks_holiday: false, user_id: "u-owner" }),
+    P("Ross", "Fletchers Cobblers Ltd", 5, 15, 0, { user_id: "u-ross" }), P("Kyle", "Fletchers Cobblers Ltd", 5, 15, 1),
+    P("Jamie", "Fletchers Cobblers Ltd", 5, 15, null), P("Ady", "Fletchers Cobblers Ltd", 2, 6, 1),
+    P("Lewis", "Newland Shoe Repairs", 5, 15, 4), P("Mike", "Sole trader (Scarborough)", 2, 6, 3), P("Tony", "Sole trader (Scarborough)", 5, 15, 3),
+  ];
+  const wk = monday(TODAY), prev = addDays(wk, -7);
+  const shifts = [];
+  const pattern = { Ross: [0, 0, 0, 0, 0, null], Kyle: [1, 1, 2, null, 1, 0], Jamie: [2, 2, null, 1, 2, 2], Ady: [null, null, 1, null, null, 1],
+    Lewis: [4, 4, 4, 4, 4, null], Mike: [3, null, null, 3, null, null], Tony: [null, 3, 3, 3, 3, 3], Owner: [4, null, 4, null, 4, null] };
+  for (const start of [prev, wk]) for (const [name, days] of Object.entries(pattern)) days.forEach((pl, i) => {
+    if (pl != null) shifts.push({ id: id(), person_id: "pe_" + name.toLowerCase(), day: addDays(start, i), place_id: "pl" + pl });
+  });
+  shifts.push({ id: id(), person_id: "pe_ross", day: addDays(wk, 1), place_id: "pl4" }); // Pocklington + Hull cover
+  const leave = [
+    { id: id(), person_id: "pe_kyle", first_day: addDays(wk, 14), last_day: addDays(wk, 19), days: 5, kind: "holiday", status: "requested", note: "Family wedding", created_at: TODAY },
+    { id: id(), person_id: "pe_jamie", first_day: addDays(wk, 16), last_day: addDays(wk, 17), days: 2, kind: "holiday", status: "requested", note: null, created_at: TODAY },
+    { id: id(), person_id: "pe_ross", first_day: addDays(wk, 3), last_day: addDays(wk, 3), days: 1, kind: "holiday", status: "approved", note: null, created_at: TODAY },
+    { id: id(), person_id: "pe_ross", first_day: `${wk.slice(0, 4)}-03-02`, last_day: `${wk.slice(0, 4)}-03-07`, days: 5, kind: "holiday", status: "approved", note: null, created_at: TODAY },
+    { id: id(), person_id: "pe_tony", first_day: `${wk.slice(0, 4)}-07-20`, last_day: `${wk.slice(0, 4)}-07-31`, days: 10, kind: "holiday", status: "approved", note: null, created_at: TODAY },
+  ];
+  shifts.splice(0, shifts.length, ...shifts.filter((s) => !(s.person_id === "pe_ross" && s.day === addDays(wk, 3))));
+  const closures = [];
+  const store = { places, people, shifts, leave, closures, logins: [{ person_id: "pe_ross", email: "ross@example.com" }] };
+  const me = as === "staff" ? people[1] : people[0];
+  const later = () => new Promise((r) => setTimeout(r, 30));
+  return {
+    async session() { return { user: { id: me.user_id, email: me.name.toLowerCase() + "@example.com" } }; },
+    async signIn() {}, async signOut() { location.reload(); }, async setPassword() {}, async resetPassword() {}, async claim() {},
+    async loadClosures() {},
+    async load() { await later(); return { places, people, closures: store.closures, leave, me, logins: me.is_admin ? store.logins : [] }; },
+    async shifts(from, to) { return shifts.filter((s) => s.day >= from && s.day <= to); },
+    async setCell(personId, day, placeIds) {
+      for (let i = shifts.length - 1; i >= 0; i--) if (shifts[i].person_id === personId && shifts[i].day === day) shifts.splice(i, 1);
+      placeIds.forEach((place_id) => shifts.push({ id: id(), person_id: personId, day, place_id }));
+    },
+    async addShifts(rows) { rows.forEach((r) => { if (!shifts.some((s) => s.person_id === r.person_id && s.day === r.day && s.place_id === r.place_id)) shifts.push({ id: id(), ...r }); }); },
+    async addLeave(row) { leave.push({ id: id(), created_at: TODAY, ...row }); },
+    async updateLeave(lid, patch) { Object.assign(leave.find((l) => l.id === lid), patch); },
+    async cancelLeave(lid) { Object.assign(leave.find((l) => l.id === lid), { status: "cancelled" }); },
+    async deleteLeave(lid) { leave.splice(leave.findIndex((l) => l.id === lid), 1); },
+    async savePerson(p) { const e = people.find((x) => x.id === p.id); if (e) return Object.assign(e, p); const n = { id: id(), ...p }; people.push(n); return n; },
+    async saveLogin(personId, email) { store.logins = store.logins.filter((l) => l.person_id !== personId); if (email) store.logins.push({ person_id: personId, email }); },
+    async savePlace(p) { Object.assign(places.find((x) => x.id === p.id), p); },
+    async addClosures(rows) { rows.forEach((r) => { const i = store.closures.findIndex((c) => c.day === r.day); if (i >= 0) store.closures[i] = r; else store.closures.push(r); }); store.closures.sort((a, b) => a.day.localeCompare(b.day)); },
+    async deleteClosure(day) { store.closures.splice(store.closures.findIndex((c) => c.day === day), 1); },
+    seedClosures(rows) { store.closures.push(...rows); },
+  };
+}
+
+const api = DEMO ? demoApi(DEMO) : supaApi();
+if (DEMO) {
+  $("demoBar").hidden = false;
+  const y = Number(TODAY.slice(0, 4));
+  api.seedClosures([
+    [`${y}-01-01`, "New Year's Day", "bank"], [`${y}-04-03`, "Good Friday", "bank"], [`${y}-04-06`, "Easter Monday", "bank"],
+    [`${y}-05-04`, "Early May bank holiday", "bank"], [`${y}-05-25`, "Spring bank holiday", "bank"], [`${y}-08-31`, "Summer bank holiday", "bank"],
+    [`${y}-12-24`, "Christmas closure", "closure"], [`${y}-12-25`, "Christmas Day", "bank"], [`${y}-12-26`, "Christmas closure", "closure"],
+    [`${y}-12-28`, "Boxing Day (substitute day)", "bank"], [`${y}-12-29`, "Christmas closure", "closure"], [`${y}-12-30`, "Christmas closure", "closure"],
+    [`${y}-12-31`, "Christmas closure", "closure"],
+  ].map(([day, name, kind]) => ({ day, name, kind })));
+}
+
+// ---- Loading ------------------------------------------------------------------------------------------
+async function loadAll(userId) {
+  Object.assign(S, await api.load(userId));
+  await loadWeek();
+}
+async function loadWeek() {
+  // This week and the one before, so "copy last week" has what it needs.
+  S.shifts = await api.shifts(addDays(S.week, -7), addDays(S.week, 6));
+}
+
+// ---- Screens ------------------------------------------------------------------------------------------
+function setTabs() {
+  const tabs = isAdmin() ? [["rota", "Rota"], ["holidays", "Holidays"], ["people", "People"]] : [["rota", "Rota"], ["holidays", "Holidays"]];
+  $("tabs").hidden = false;
+  $("tabs").innerHTML = tabs.map(([k, t]) => `<button data-tab="${k}" class="${S.tab === k ? "on" : ""}">${t}</button>`).join("");
+  $("tabs").onclick = (e) => { const t = e.target.dataset.tab; if (t) { S.tab = t; render(); } };
+}
+
+function render() {
+  setTabs();
+  $("who").textContent = S.me ? S.me.name : "";
+  $("menuBtn").hidden = false;
+  if (S.tab === "holidays") renderHolidays();
+  else if (S.tab === "people" && isAdmin()) renderPeople();
+  else renderRota();
+}
+
+function chipsFor(p, d) {
+  const out = [];
+  for (const l of leaveOn(p.id, d)) {
+    if (l.kind === "holiday") out.push(`<span class="chip ${l.status === "approved" ? "hol" : "req"}">${l.status === "approved" ? "Holiday" : "Hol?"}</span>`);
+    else out.push(`<span class="chip sick">${l.kind === "sick" ? "Sick" : "Off"}</span>`);
+  }
+  for (const s of S.shifts.filter((s) => s.person_id === p.id && s.day === d)) {
+    const pl = place(s.place_id);
+    if (pl) out.push(`<span class="chip ${placeClass(pl)}" title="${esc(pl.name)}">${esc(shortName(pl.name))}</span>`);
+  }
+  return out.join("");
+}
+
+function weekWarnings(days) {
+  const warn = {};
+  for (const d of days) {
+    const list = [];
+    if (closureOn(d)) { warn[d] = list; continue; }
+    for (const pl of S.places.filter((x) => x.active && x.needs_cover)) {
+      if (!S.shifts.some((s) => s.day === d && s.place_id === pl.id)) list.push(`<span class="chip gap">No one in ${esc(shortName(pl.name))}</span>`);
+    }
+    for (const p of activePeople()) {
+      const off = leaveOn(p.id, d).some((l) => l.status === "approved");
+      if (off && S.shifts.some((s) => s.person_id === p.id && s.day === d)) list.push(`<span class="chip clash">${esc(p.name)} is off</span>`);
+    }
+    warn[d] = list;
+  }
+  return warn;
+}
+
+function renderRota() {
+  const days = [0, 1, 2, 3, 4, 5].map((i) => addDays(S.week, i));
+  const end = days[5];
+  const people = activePeople();
+  const warn = weekWarnings(days);
+  const admin = isAdmin();
+  let html = `
+    <div class="weeknav">
+      <button id="prevWeek" aria-label="Previous week">‹</button>
+      <div class="label">${fmt(S.week, { day: "numeric", month: "short" })} – ${fmt(end, { day: "numeric", month: "short", year: "numeric" })}
+        <small>${S.week === monday(TODAY) ? "This week" : `<a href="#" id="thisWeek">Back to this week</a>`}</small></div>
+      <button id="nextWeek" aria-label="Next week">›</button>
+    </div>`;
+
+  if (S.me && !admin) html += myWeekCard(days);
+
+  html += `<div class="scroll"><table class="rota"><thead><tr><th class="name">${admin ? "Tap a box to change it" : ""}</th>`;
+  for (const d of days) html += `<th class="${d === TODAY ? "today" : ""}">${dayLabel(d)}</th>`;
+  html += `</tr></thead><tbody>`;
+  for (const p of people) {
+    html += `<tr class="${S.me && p.id === S.me.id ? "me" : ""}"><td class="name">${esc(p.name)}${p.days_per_week ? `<small>${num(p.days_per_week)} days</small>` : ""}</td>`;
+    for (const d of days) {
+      const c = closureOn(d);
+      if (c) { html += `<td class="cell closed">${esc(c.name)}</td>`; continue; }
+      html += `<td class="cell ${admin ? "edit" : ""}" data-p="${p.id}" data-d="${d}">${chipsFor(p, d)}</td>`;
+    }
+    html += `</tr>`;
+  }
+  if (admin) {
+    html += `<tr class="cover"><td class="name muted">Checks</td>`;
+    for (const d of days) html += `<td>${(warn[d] || []).join("") || (closureOn(d) ? "" : `<span class="muted">All covered</span>`)}</td>`;
+    html += `</tr>`;
+  }
+  html += `</tbody></table></div>`;
+  html += `<div class="legend muted">${S.places.filter((p) => p.active).map((pl) => `<span class="chip ${placeClass(pl)}">${esc(shortName(pl.name))}</span>${esc(pl.name)}`).join(" &nbsp; ")}
+    &nbsp; <span class="chip hol">Holiday</span> &nbsp; <span class="chip req">Hol?</span> waiting</div>`;
+  if (admin) html += `<div class="row" style="margin-top:12px"><button class="btn ghost" id="copyWeek">Copy last week into empty boxes</button></div>`;
+  $("app").innerHTML = html;
+
+  $("prevWeek").onclick = async () => { S.week = addDays(S.week, -7); await loadWeek(); render(); };
+  $("nextWeek").onclick = async () => { S.week = addDays(S.week, 7); await loadWeek(); render(); };
+  if ($("thisWeek")) $("thisWeek").onclick = async (e) => { e.preventDefault(); S.week = monday(TODAY); await loadWeek(); render(); };
+  if (admin) {
+    $("app").querySelectorAll("td.cell.edit").forEach((td) => (td.onclick = () => editCell(person(td.dataset.p), td.dataset.d)));
+    $("copyWeek").onclick = copyLastWeek;
+  }
+}
+
+function myWeekCard(days) {
+  const items = days.map((d) => {
+    const c = closureOn(d);
+    const what = c ? `<span class="muted">${esc(c.name)}</span>` : chipsFor(S.me, d) || `<span class="muted">Off</span>`;
+    return `<li><span class="d">${dayLabel(d)}</span><span>${what}</span></li>`;
+  }).join("");
+  return `<div class="card"><h2>My week</h2><ul class="list myweek">${items}</ul></div>`;
+}
+
+function editCell(p, d) {
+  const current = S.shifts.filter((s) => s.person_id === p.id && s.day === d).map((s) => s.place_id);
+  const off = leaveOn(p.id, d);
+  const note = off.length ? `<div class="msg warn">${esc(p.name)} has ${off.map((l) => l.status === "approved" ? (l.kind === "holiday" ? "a holiday" : l.kind === "sick" ? "sick leave" : "time off") : "a holiday request waiting").join(" and ")} that day.</div>` : "";
+  openSheet(`
+    <h2>${esc(p.name)} · ${dayLabel(d)}</h2>${note}
+    ${S.places.filter((x) => x.active).map((pl) => `<label class="check"><input type="checkbox" value="${pl.id}" ${current.includes(pl.id) ? "checked" : ""}> <span class="chip ${placeClass(pl)}">${esc(shortName(pl.name))}</span> ${esc(pl.name)}</label>`).join("")}
+    <p class="muted small">Tick two for a split day, e.g. Pocklington and Hull cover. Nothing ticked means a day off.</p>
+    <div class="row"><button class="btn ghost" id="cellOff">Day off</button><span class="spacer"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" id="cellSave">Save</button></div>`);
+  const save = async (ids) => {
+    try { await api.setCell(p.id, d, ids); await loadWeek(); closeSheet(); render(); }
+    catch (e) { alert("Couldn't save: " + e.message); }
+  };
+  $("cellSave").onclick = () => save([...$("sheet").querySelectorAll("input[type=checkbox]:checked")].map((i) => i.value));
+  $("cellOff").onclick = () => save([]);
+}
+
+async function copyLastWeek() {
+  const prev = addDays(S.week, -7);
+  const rows = [];
+  for (const s of S.shifts.filter((s) => s.day >= prev && s.day < S.week)) {
+    const day = addDays(s.day, 7);
+    const p = person(s.person_id);
+    if (!p?.active || closureOn(day)) continue;
+    if (S.shifts.some((x) => x.person_id === s.person_id && x.day === day)) continue; // keep what's already there
+    if (leaveOn(s.person_id, day).some((l) => l.status === "approved")) continue;
+    rows.push({ person_id: s.person_id, day, place_id: s.place_id });
+  }
+  if (!rows.length) { alert("Nothing to copy: last week is empty, or every box this week is already filled."); return; }
+  if (!confirm(`Copy ${rows.length} shift${rows.length === 1 ? "" : "s"} from last week into the empty boxes? People on holiday are skipped.`)) return;
+  try { await api.addShifts(rows); await loadWeek(); render(); } catch (e) { alert("Couldn't copy: " + e.message); }
+}
+
+// ---- Holidays -------------------------------------------------------------------------------------------
+function renderHolidays() {
+  const y = S.year;
+  let html = `<div class="weeknav"><button id="prevYear" aria-label="Previous year">‹</button><div class="label">${y}<small>Holiday year January – December</small></div><button id="nextYear" aria-label="Next year">›</button></div>`;
+  const admin = isAdmin();
+
+  if (S.me?.tracks_holiday) {
+    const a = allowance(S.me, y);
+    html += `<div class="card"><h2>My holiday</h2>
+      <div class="stats"><div><b>${num(a.left)}</b>left to book</div><div><b>${num(a.used)}</b>booked</div><div><b>${num(a.waiting)}</b>waiting</div></div>
+      <p class="muted small">You choose ${num(a.chosen)} days a year. Bank holidays and the Christmas closure are given on top.</p>
+      <button class="btn" id="askOff">Request time off</button></div>`;
+    const mine = S.leave.filter((l) => l.person_id === S.me.id && l.first_day.startsWith(String(y))).sort((a, b) => b.first_day.localeCompare(a.first_day));
+    html += `<div class="card"><h2>My requests</h2>${mine.length ? `<ul class="list">${mine.map((l) => leaveItem(l, { own: true })).join("")}</ul>` : `<p class="muted">None this year.</p>`}</div>`;
+  }
+
+  if (admin) {
+    const waiting = S.leave.filter((l) => l.status === "requested").sort((a, b) => a.first_day.localeCompare(b.first_day));
+    html += `<div class="card"><h2>Waiting for you${waiting.length ? ` (${waiting.length})` : ""}</h2>${waiting.length ? `<ul class="list">${waiting.map((l) => leaveItem(l, { decide: true })).join("")}</ul>` : `<p class="muted">No requests waiting.</p>`}
+      <button class="btn ghost" id="addOff">Add time off for someone</button></div>`;
+
+    const rows = activePeople().filter((p) => p.tracks_holiday).map((p) => {
+      const a = allowance(p, y);
+      return `<tr><td>${esc(p.name)}<br><span class="muted small">${esc(p.employer)}</span></td><td class="num">${num(a.chosen)}</td><td class="num">${num(a.used)}</td><td class="num">${num(a.waiting)}</td><td class="num"><b>${num(a.left)}</b></td>
+        <td class="num ${a.short ? "" : "muted"}">${a.short ? `<span class="chip gap">${num(a.given)} of ${num(a.minimum)}</span>` : `${num(a.given)} ✓`}</td></tr>`;
+    }).join("");
+    const anyShort = activePeople().some((p) => p.tracks_holiday && allowance(p, y).short);
+    const christmasSet = S.closures.some((c) => c.kind === "closure" && c.day.startsWith(`${y}-12`));
+    html += `<div class="card"><h2>Everyone's holiday</h2><div class="scroll" style="background:none"><table class="simple"><thead><tr><th>Name</th><th class="num">Choose</th><th class="num">Booked</th><th class="num">Waiting</th><th class="num">Left</th><th class="num">Legal min.</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="muted small">"Legal min." estimates everything given in the year (chosen days plus their share of bank holidays and closures) against the legal 5.6 weeks for their days a week.</p>
+      ${!christmasSet ? `<div class="msg warn">Christmas ${y} closure dates aren't set yet, so the legal check will look short until they are (People tab).</div>` : anyShort ? `<div class="msg warn">Someone's below the legal minimum for ${y}. Adding a day or two to their chosen days, or to the Christmas closure, fixes it.</div>` : ""}</div>`;
+  }
+
+  // Who's off soon: everyone sees approved holidays; admins also see sickness and requests.
+  const from = TODAY, to = addDays(TODAY, 90);
+  const soon = S.leave.filter((l) => l.last_day >= from && l.first_day <= to && (l.status === "approved" || (admin && l.status === "requested")))
+    .sort((a, b) => a.first_day.localeCompare(b.first_day));
+  html += `<div class="card"><h2>Who's off in the next 3 months</h2>${soon.length ? `<ul class="list">${soon.map((l) => leaveItem(l, {})).join("")}</ul>` : `<p class="muted">Nobody yet.</p>`}</div>`;
+  if (!S.me?.tracks_holiday && !admin) html += `<p class="muted">Your holiday isn't tracked here.</p>`;
+  $("app").innerHTML = html;
+
+  $("prevYear").onclick = () => { S.year--; render(); };
+  $("nextYear").onclick = () => { S.year++; render(); };
+  if ($("askOff")) $("askOff").onclick = () => requestSheet(S.me, false);
+  if ($("addOff")) $("addOff").onclick = () => requestSheet(null, true);
+  $("app").querySelectorAll("[data-approve]").forEach((b) => (b.onclick = () => decide(b.dataset.approve, "approved")));
+  $("app").querySelectorAll("[data-decline]").forEach((b) => (b.onclick = () => decide(b.dataset.decline, "declined")));
+  $("app").querySelectorAll("[data-cancel]").forEach((b) => (b.onclick = async () => {
+    if (!confirm("Cancel this request?")) return;
+    try { await api.cancelLeave(b.dataset.cancel); await reload(); } catch (e) { alert(e.message); }
+  }));
+  $("app").querySelectorAll("[data-remove]").forEach((b) => (b.onclick = async () => {
+    if (!confirm("Remove this time off completely?")) return;
+    try { await api.deleteLeave(b.dataset.remove); await reload(); } catch (e) { alert(e.message); }
+  }));
+}
+
+function leaveItem(l, { own, decide }) {
+  const p = person(l.person_id);
+  const when = l.first_day === l.last_day ? dayLabel(l.first_day) : `${dayLabel(l.first_day)} – ${dayLabel(l.last_day)}`;
+  const kind = l.kind === "holiday" ? "" : l.kind === "sick" ? ` <span class="chip sick">Sick</span>` : ` <span class="chip sick">Other</span>`;
+  const status = { requested: `<span class="chip req">Waiting</span>`, approved: `<span class="chip hol">Approved</span>`, declined: `<span class="chip gap">Declined</span>`, cancelled: `<span class="muted small">Cancelled</span>` }[l.status];
+  let extra = "";
+  if (decide) {
+    const others = S.leave.filter((o) => o.id !== l.id && o.person_id !== l.person_id && (o.status === "approved" || o.status === "requested") && o.first_day <= l.last_day && o.last_day >= l.first_day);
+    if (others.length) extra += `<div class="msg warn">Also off then: ${others.map((o) => `${esc(person(o.person_id)?.name)}${o.status === "requested" ? " (asked)" : ""}`).join(", ")}</div>`;
+    const a = p ? allowance(p, Number(l.first_day.slice(0, 4))) : null;
+    if (a && l.kind === "holiday") extra += `<div class="muted small">${esc(p.name)} has ${num(a.chosen - a.used)} days left before this.</div>`;
+    extra += `<div class="row" style="margin-top:8px"><button class="btn danger" data-decline="${l.id}">Decline</button><span class="spacer"></span><button class="btn ok" data-approve="${l.id}">Approve</button></div>`;
+  } else if (own && l.status === "requested") {
+    extra += `<div class="row" style="margin-top:6px"><button class="btn danger" data-cancel="${l.id}">Cancel request</button></div>`;
+  } else if (isAdmin() && !own && l.status === "approved") {
+    extra += `<div class="row" style="margin-top:6px"><button class="btn danger" data-remove="${l.id}">Remove</button></div>`;
+  }
+  return `<li><div class="row"><b>${own ? "" : esc(p?.name) + " · "}${when}</b>${kind}<span class="spacer"></span>${status}</div>
+    <div class="muted small">${num(l.days)} day${Number(l.days) === 1 ? "" : "s"}${l.note ? " · " + esc(l.note) : ""}</div>${extra}</li>`;
+}
+
+async function decide(id, status) {
+  try { await api.updateLeave(id, { status, decided_at: new Date().toISOString() }); await reload(); }
+  catch (e) { alert("Couldn't save: " + e.message); }
+}
+
+function requestSheet(forPerson, asAdmin) {
+  const people = activePeople().filter((p) => p.tracks_holiday || asAdmin);
+  openSheet(`
+    <h2>${asAdmin ? "Add time off" : "Request time off"}</h2>
+    ${asAdmin ? `<label>Who</label><select id="rqWho">${people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
+      <label>What</label><select id="rqKind"><option value="holiday">Holiday</option><option value="sick">Sick</option><option value="other">Other time off</option></select>` : ""}
+    <div class="grid2"><div><label>First day off</label><input type="date" id="rqFirst" value="${addDays(TODAY, 1)}"></div><div><label>Last day off</label><input type="date" id="rqLast" value="${addDays(TODAY, 1)}"></div></div>
+    <label>Holiday days this uses</label><input type="number" id="rqDays" min="0" step="0.5" ${asAdmin ? "" : "readonly"}>
+    <p class="muted small" id="rqHelp"></p>
+    <label>Note (optional)</label><input id="rqNote" maxlength="200" placeholder="${asAdmin ? "" : "e.g. family wedding"}">
+    <div class="msg bad" id="rqErr" hidden></div>
+    <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" id="rqSend">${asAdmin ? "Add" : "Send request"}</button></div>`);
+  const who = () => (asAdmin ? person($("rqWho").value) : forPerson);
+  const update = () => {
+    const f = $("rqFirst").value, l = $("rqLast").value, p = who();
+    if (!f || !l || l < f) { $("rqHelp").textContent = "The last day can't be before the first."; return; }
+    const kind = asAdmin ? $("rqKind").value : "holiday";
+    const n = kind === "holiday" ? daysUsed(p, f, l) : 0;
+    $("rqDays").value = n;
+    const closed = openDays(f, l).length !== [...Array(400).keys()].map((i) => addDays(f, i)).filter((d) => d <= l && !isSunday(d)).length;
+    const a = allowance(p, Number(f.slice(0, 4)));
+    $("rqHelp").textContent = kind !== "holiday" ? "Sickness and other time off don't come out of holiday."
+      : `Sundays${closed ? ", bank holidays and closures" : ""} don't count. ${p.days_per_week < 6 ? `At most ${Math.ceil(p.days_per_week)} a week (${p.name}'s working days). ` : ""}${num(a.left)} left to book in ${f.slice(0, 4)}.`;
+  };
+  ["rqFirst", "rqLast"].forEach((i) => ($(i).oninput = () => { if ($("rqLast").value < $("rqFirst").value) $("rqLast").value = $("rqFirst").value; update(); }));
+  if (asAdmin) { $("rqWho").onchange = update; $("rqKind").onchange = update; }
+  update();
+  $("rqSend").onclick = async () => {
+    const f = $("rqFirst").value, l = $("rqLast").value, p = who();
+    const err = (m) => { $("rqErr").textContent = m; $("rqErr").hidden = false; };
+    if (!f || !l || l < f) return err("Check the dates.");
+    if (!asAdmin && f < TODAY) return err("Requests are for days still to come. Ask the manager to add past days.");
+    const kind = asAdmin ? $("rqKind").value : "holiday";
+    const days = Number($("rqDays").value) || 0;
+    const a = allowance(p, Number(f.slice(0, 4)));
+    if (kind === "holiday" && !asAdmin && days > a.left) return err(`That's ${num(days)} days but there are only ${num(a.left)} left to book.`);
+    const row = { person_id: p.id, first_day: f, last_day: l, days, kind, note: $("rqNote").value.trim() || null, status: asAdmin ? "approved" : "requested" };
+    if (asAdmin) row.decided_at = new Date().toISOString();
+    try { $("rqSend").disabled = true; await api.addLeave(row); closeSheet(); await reload(); }
+    catch (e) { $("rqSend").disabled = false; err("Couldn't send: " + e.message); }
+  };
+}
+
+// ---- People, places and closures (admins) ------------------------------------------------------------------
+function renderPeople() {
+  const y = S.year;
+  const loginOf = (p) => S.logins.find((l) => l.person_id === p.id)?.email;
+  let html = `<div class="card"><div class="row"><h2 style="margin:0">People</h2><span class="spacer"></span><button class="btn ghost" id="addPerson">Add someone</button></div>
+    <ul class="list">${S.people.map((p) => `<li class="row" data-person="${p.id}" style="cursor:pointer"><div><b>${esc(p.name)}</b>${p.is_admin ? ` <span class="chip p0">Manager</span>` : ""}${p.active ? "" : ` <span class="muted small">(left)</span>`}
+      <div class="muted small">${esc(p.employer)} · ${num(p.days_per_week)} days a week${p.tracks_holiday ? ` · ${num(p.chosen_days)} days to choose` : " · holiday not tracked"}${p.home_place_id ? ` · ${esc(place(p.home_place_id)?.name)}` : ""}</div>
+      <div class="small">${p.user_id ? `<span style="color:var(--ok)">Signed in ✓</span>` : loginOf(p) ? `<span class="muted">Login: ${esc(loginOf(p))} (not signed in yet)</span>` : `<span class="muted">No login yet</span>`}</div></div><span class="spacer"></span><span class="muted">›</span></li>`).join("")}</ul></div>`;
+
+  html += `<div class="card"><h2>Places</h2>${S.places.map((pl) => `<label class="check"><input type="checkbox" data-cover="${pl.id}" ${pl.needs_cover ? "checked" : ""}> <span class="chip ${placeClass(pl)}">${esc(shortName(pl.name))}</span> ${esc(pl.name)} needs someone every open day</label>`).join("")}
+    <p class="muted small">Ticked places show "No one in…" on the rota when a day's empty.</p></div>`;
+
+  const yc = S.closures.filter((c) => c.day.startsWith(String(y)));
+  html += `<div class="card"><div class="weeknav" style="margin:0 0 6px"><button id="prevYear" aria-label="Previous year">‹</button><div class="label">Days off for everyone in ${y}<small>Bank holidays and closures</small></div><button id="nextYear" aria-label="Next year">›</button></div>
+    <ul class="list">${yc.map((c) => `<li class="row"><span>${dayLabel(c.day)}</span><span class="${c.kind === "bank" ? "muted" : ""}">${esc(c.name)}</span><span class="spacer"></span><button class="btn danger" data-unclose="${c.day}">Remove</button></li>`).join("") || `<li class="muted">None set for ${y}.</li>`}</ul>
+    <div class="row" style="margin-top:10px"><button class="btn ghost" id="addXmas">Set Christmas closure</button><button class="btn ghost" id="addDay">Add a day</button></div></div>`;
+
+  html += `<div class="card"><h2>Giving someone a login</h2><ol class="small" style="padding-left:18px;margin:0">
+    <li>Tap their name above and enter their email under <b>Login email</b>.</li>
+    <li>In Supabase, go to <b>Authentication → Users → Add user → Create new user</b>, with the same email and a starter password. Tick <b>Auto confirm</b>.</li>
+    <li>Give them the starter password and this page's address. When they first sign in they're linked automatically, and they can change their password under <b>Account</b>.</li></ol></div>`;
+  $("app").innerHTML = html;
+
+  $("addPerson").onclick = () => personSheet(null);
+  $("app").querySelectorAll("[data-person]").forEach((li) => (li.onclick = () => personSheet(person(li.dataset.person))));
+  $("app").querySelectorAll("[data-cover]").forEach((cb) => (cb.onchange = async () => {
+    const pl = place(cb.dataset.cover);
+    try { await api.savePlace({ id: pl.id, needs_cover: cb.checked }); pl.needs_cover = cb.checked; } catch (e) { alert(e.message); cb.checked = !cb.checked; }
+  }));
+  $("prevYear").onclick = () => { S.year--; render(); };
+  $("nextYear").onclick = () => { S.year++; render(); };
+  $("app").querySelectorAll("[data-unclose]").forEach((b) => (b.onclick = async () => {
+    if (!confirm("Remove this day off?")) return;
+    try { await api.deleteClosure(b.dataset.unclose); await reload(); } catch (e) { alert(e.message); }
+  }));
+  $("addXmas").onclick = christmasSheet;
+  $("addDay").onclick = () => {
+    openSheet(`<h2>Add a day off for everyone</h2><label>Day</label><input type="date" id="cdDay" value="${S.year}-01-01">
+      <label>Name</label><input id="cdName" placeholder="e.g. Extra bank holiday"><label>Type</label><select id="cdKind"><option value="bank">Bank holiday</option><option value="closure">Shop closure</option></select>
+      <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" id="cdSave">Add</button></div>`);
+    $("cdSave").onclick = async () => {
+      const day = $("cdDay").value, name = $("cdName").value.trim() || ($("cdKind").value === "bank" ? "Bank holiday" : "Shop closure");
+      if (!day) return;
+      try { await api.addClosures([{ day, name, kind: $("cdKind").value }]); closeSheet(); await reload(); } catch (e) { alert(e.message); }
+    };
+  };
+}
+
+function christmasSheet() {
+  const y = S.year;
+  openSheet(`<h2>Christmas closure ${y}</h2>
+    <div class="grid2"><div><label>Last day open</label><input type="date" id="xLast" value="${y}-12-23"></div><div><label>First day back</label><input type="date" id="xBack" value="${y + 1}-01-02"></div></div>
+    <p class="muted small" id="xHelp"></p>
+    <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" id="xSave">Save</button></div>`);
+  const days = () => {
+    const out = [];
+    for (let d = addDays($("xLast").value, 1); d < $("xBack").value && out.length < 40; d = addDays(d, 1)) if (!isSunday(d) && closureOn(d)?.kind !== "bank") out.push(d);
+    return out;
+  };
+  const upd = () => { const n = days().length; $("xHelp").textContent = `${n} closed shop day${n === 1 ? "" : "s"} on top of the bank holidays. Everyone gets these off without using holiday.`; };
+  $("xLast").oninput = upd; $("xBack").oninput = upd; upd();
+  $("xSave").onclick = async () => {
+    try { await api.addClosures(days().map((day) => ({ day, name: "Christmas closure", kind: "closure" }))); closeSheet(); await reload(); }
+    catch (e) { alert(e.message); }
+  };
+}
+
+function personSheet(p) {
+  const isNew = !p;
+  p = p ?? { name: "", employer: "Fletchers Cobblers Ltd", days_per_week: 5, chosen_days: 15, tracks_holiday: true, home_place_id: null, is_admin: false, active: true, sort: S.people.length };
+  const email = isNew ? "" : S.logins.find((l) => l.person_id === p.id)?.email ?? "";
+  openSheet(`<h2>${isNew ? "Add someone" : esc(p.name)}</h2>
+    <label>Name</label><input id="pName" value="${esc(p.name)}">
+    <label>Employed by</label><input id="pEmployer" value="${esc(p.employer)}" list="employers">
+    <datalist id="employers">${[...new Set(S.people.map((x) => x.employer))].map((e) => `<option value="${esc(e)}">`).join("")}</datalist>
+    <div class="grid2"><div><label>Days a week</label><input type="number" id="pDays" min="0" max="6" step="0.5" value="${num(p.days_per_week)}"></div>
+      <div><label>Holiday days to choose</label><input type="number" id="pChosen" min="0" step="0.5" value="${num(p.chosen_days)}"></div></div>
+    <label>Usual shop</label><select id="pHome"><option value="">Moves around</option>${S.places.map((pl) => `<option value="${pl.id}" ${pl.id === p.home_place_id ? "selected" : ""}>${esc(pl.name)}</option>`).join("")}</select>
+    <label>Login email</label><input id="pEmail" type="email" value="${esc(email)}" placeholder="Leave empty for no login">
+    <label class="check"><input type="checkbox" id="pTrack" ${p.tracks_holiday ? "checked" : ""}> Track their holiday</label>
+    <label class="check"><input type="checkbox" id="pAdmin" ${p.is_admin ? "checked" : ""}> Manager (builds rotas, approves holidays)</label>
+    <label class="check"><input type="checkbox" id="pActive" ${p.active ? "checked" : ""}> Still works here</label>
+    <div class="msg bad" id="pErr" hidden></div>
+    <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" id="pSave">Save</button></div>`);
+  $("pSave").onclick = async () => {
+    const err = (m) => { $("pErr").textContent = m; $("pErr").hidden = false; };
+    const row = {
+      ...(isNew ? {} : { id: p.id }),
+      name: $("pName").value.trim(), employer: $("pEmployer").value.trim() || "Fletchers Cobblers Ltd",
+      days_per_week: Number($("pDays").value) || 0, chosen_days: Number($("pChosen").value) || 0,
+      home_place_id: $("pHome").value || null, tracks_holiday: $("pTrack").checked, is_admin: $("pAdmin").checked,
+      active: $("pActive").checked, sort: p.sort ?? 0,
+    };
+    if (!row.name) return err("Enter a name.");
+    if (!isNew && p.id === S.me.id && (!row.is_admin || !row.active)) return err("You can't take away your own manager access here.");
+    const mail = $("pEmail").value.trim().toLowerCase();
+    if (mail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return err("That email doesn't look right.");
+    try {
+      $("pSave").disabled = true;
+      const saved = await api.savePerson(row);
+      if (mail !== email) await api.saveLogin(saved.id, mail || null);
+      closeSheet(); await reload();
+    } catch (e) { $("pSave").disabled = false; err("Couldn't save: " + e.message); }
+  };
+}
+
+// ---- Account ---------------------------------------------------------------------------------------------------
+$("menuBtn").onclick = () => {
+  openSheet(`<h2>${esc(S.me?.name ?? "Account")}</h2>
+    <label>New password</label><input type="password" id="newPw" autocomplete="new-password" minlength="8" placeholder="At least 8 characters">
+    <div class="msg" id="pwMsg" hidden></div>
+    <div class="row" style="margin-top:12px"><button class="btn danger" id="signOut">Sign out</button><span class="spacer"></span><button class="btn ghost" data-close>Close</button><button class="btn" id="pwSave">Change password</button></div>`);
+  $("signOut").onclick = async () => { await api.signOut(); location.reload(); };
+  $("pwSave").onclick = async () => {
+    const pw = $("newPw").value, m = $("pwMsg");
+    m.hidden = false;
+    if (pw.length < 8) { m.className = "msg bad"; m.textContent = "Use at least 8 characters."; return; }
+    try { await api.setPassword(pw); m.className = "msg good"; m.textContent = "Password changed."; $("newPw").value = ""; }
+    catch (e) { m.className = "msg bad"; m.textContent = e.message; }
+  };
+};
+
+// ---- Sheets ------------------------------------------------------------------------------------------------------
+function openSheet(html) {
+  $("sheet").innerHTML = html;
+  $("modal").hidden = false;
+  $("sheet").querySelectorAll("[data-close]").forEach((b) => (b.onclick = closeSheet));
+}
+function closeSheet() { $("modal").hidden = true; $("sheet").innerHTML = ""; }
+$("modal").onclick = (e) => { if (e.target === $("modal")) closeSheet(); };
+
+async function reload() {
+  const session = await api.session();
+  await loadAll(session?.user?.id);
+  render();
+}
+
+// ---- Signing in ----------------------------------------------------------------------------------------------------
+function showSignIn(message) {
+  $("tabs").hidden = true; $("menuBtn").hidden = true; $("who").textContent = "";
+  $("app").innerHTML = `<div class="card login"><h2>Sign in</h2>
+    <label>Email</label><input type="email" id="email" autocomplete="username">
+    <label>Password</label><input type="password" id="password" autocomplete="current-password">
+    <div class="msg ${message ? "bad" : ""}" id="loginMsg" ${message ? "" : "hidden"}>${esc(message)}</div>
+    <div class="row" style="margin-top:12px"><a href="#" id="forgot" class="small">Forgotten password?</a><span class="spacer"></span><button class="btn" id="signIn">Sign in</button></div></div>`;
+  const go = async () => {
+    try { await api.signIn($("email").value.trim(), $("password").value); await start(); }
+    catch { const m = $("loginMsg"); m.hidden = false; m.className = "msg bad"; m.textContent = "That email and password weren't accepted."; }
+  };
+  $("signIn").onclick = go;
+  $("password").onkeydown = (e) => { if (e.key === "Enter") go(); };
+  $("forgot").onclick = async (e) => {
+    e.preventDefault();
+    const email = $("email").value.trim(), m = $("loginMsg");
+    m.hidden = false;
+    if (!email) { m.className = "msg bad"; m.textContent = "Type your email first, then tap Forgotten password."; return; }
+    try { await api.resetPassword(email); m.className = "msg good"; m.textContent = "If that email has a login, a reset link is on its way."; }
+    catch (err) { m.className = "msg bad"; m.textContent = err.message; }
+  };
+}
+
+function showSetPassword() {
+  $("tabs").hidden = true;
+  $("app").innerHTML = `<div class="card login"><h2>Choose a new password</h2>
+    <label>New password</label><input type="password" id="pw1" autocomplete="new-password" placeholder="At least 8 characters">
+    <div class="msg bad" id="spMsg" hidden></div>
+    <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn" id="spSave">Save and continue</button></div></div>`;
+  $("spSave").onclick = async () => {
+    const pw = $("pw1").value;
+    if (pw.length < 8) { $("spMsg").hidden = false; $("spMsg").textContent = "Use at least 8 characters."; return; }
+    try { await api.setPassword(pw); history.replaceState(null, "", location.pathname); await start(); }
+    catch (e) { $("spMsg").hidden = false; $("spMsg").textContent = e.message; }
+  };
+}
+
+async function start() {
+  try {
+    const session = await api.session();
+    if (!session) return showSignIn();
+    await api.claim(); // links a first sign-in to its rota person by email
+    await loadAll(session.user.id);
+    if (!S.me) {
+      $("app").innerHTML = `<div class="card login"><h2>Not on the rota yet</h2><p>You're signed in as ${esc(session.user.email)}, but that email isn't linked to anyone on the rota. Ask the manager to add it under People.</p><button class="btn ghost" id="out">Sign out</button></div>`;
+      $("out").onclick = async () => { await api.signOut(); location.reload(); };
+      return;
+    }
+    render();
+  } catch (e) {
+    $("app").innerHTML = `<div class="card"><h2>Couldn't load the rota</h2><p class="muted">${esc(e.message)}</p><button class="btn" onclick="location.reload()">Try again</button></div>`;
+  }
+}
+
+if (!DEMO) {
+  api.db.auth.onAuthStateChange((event) => { if (event === "PASSWORD_RECOVERY") showSetPassword(); });
+}
+if (!location.hash.includes("type=recovery")) start();
+</script>
+</body>
+</html>
