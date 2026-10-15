@@ -61,6 +61,9 @@
   .weeknav button { width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--card); color: var(--ink); font-size: 22px; cursor: pointer; }
   .weeknav .label { flex: 1; text-align: center; font-weight: 600; font-size: 17px; }
   .weeknav .label small { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
+  .pickwrap { position: relative; display: inline-block; cursor: pointer; border-bottom: 1px dashed var(--muted); }
+  .pickwrap input.pick { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; padding: 0; border: 0; cursor: pointer; }
+  a.goweek { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
   .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 14px; background: var(--card); }
   table.rota { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 640px; }
   table.rota th, table.rota td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
@@ -460,7 +463,7 @@ function renderRota() {
   let html = `
     <div class="weeknav">
       <button id="prevWeek" aria-label="Previous week">‹</button>
-      <div class="label">${fmt(S.week, { day: "numeric", month: "short" })} – ${fmt(end, { day: "numeric", month: "short", year: "numeric" })}
+      <div class="label"><span class="pickwrap">${fmt(S.week, { day: "numeric", month: "short" })} – ${fmt(end, { day: "numeric", month: "short", year: "numeric" })} ▾<input type="date" id="weekPick" class="pick" value="${S.week}" aria-label="Pick a week"></span>
         <small>${S.week === monday(TODAY) ? "This week" : `<a href="#" id="thisWeek">Back to this week</a>`}</small></div>
       <button id="nextWeek" aria-label="Next week">›</button>
     </div>`;
@@ -494,6 +497,8 @@ function renderRota() {
   $("app").innerHTML = html;
 
   $("prevWeek").onclick = async () => { S.week = addDays(S.week, -7); await loadWeek(); render(); };
+  $("weekPick").onclick = (e) => { try { e.target.showPicker(); } catch {} };
+  $("weekPick").onchange = (e) => { if (e.target.value) goToWeek(e.target.value); };
   $("nextWeek").onclick = async () => { S.week = addDays(S.week, 7); await loadWeek(); render(); };
   if ($("thisWeek")) $("thisWeek").onclick = async (e) => { e.preventDefault(); S.week = monday(TODAY); await loadWeek(); render(); };
   if (admin) {
@@ -671,7 +676,8 @@ function daySheet(d) {
     ${items ? `<ul class="list">${items}</ul>` : `<p class="muted">Nobody's off.</p>`}
     ${admin ? `<label>Book someone off</label><select id="dsWho">${activePeople().filter((p) => (p.days_per_week > 0 || p.tracks_holiday || p.is_admin) && !off.some((l) => l.person_id === p.id)).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
       <div class="seg">${Object.entries(KIND).map(([k, [label, cls]]) => `<button class="${cls}" data-dsbook="${k}">${label}</button>`).join("")}</div>` : ""}
-    <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn ghost" data-close>Close</button></div>`);
+    <div class="row" style="margin-top:12px"><button class="btn ghost" id="dsWeek">See this week's rota</button><span class="spacer"></span><button class="btn ghost" data-close>Close</button></div>`);
+  $("dsWeek").onclick = () => goToWeek(d);
   $("sheet").querySelectorAll("[data-clear]").forEach((b) => (b.onclick = () => { closeSheet(); setDay(person(b.dataset.clear), d, null); }));
   $("sheet").querySelectorAll("[data-dsbook]").forEach((b) => (b.onclick = () => {
     const p = person($("dsWho").value), k = b.dataset.dsbook;
@@ -796,6 +802,15 @@ async function recount(p, mons) {
   const hit = S.leave.filter((l) => l.person_id === p.id && l.kind === "holiday" && counts(l) && mons.some((m) => l.first_day <= addDays(m, 5) && l.last_day >= m));
   for (const l of hit) { const n = holidayDays(p, l); if (n !== Number(l.days)) { await api.updateLeave(l.id, { days: n }); l.days = n; } }
 }
+/** Shows the rota for the week that day falls in. */
+async function goToWeek(d) {
+  closeSheet();
+  S.tab = "rota";
+  S.week = monday(d);
+  await loadWeek();
+  render();
+  window.scrollTo(0, 0);
+}
 async function reloadData() { const session = await api.session(); await loadAll(session?.user?.id); }
 async function refresh(p, d) { await reloadData(); await recount(person(p.id), [monday(d)]); render(); }
 
@@ -864,6 +879,7 @@ function renderHolidays() {
     if (!confirm("Remove these extra days?")) return;
     try { await api.deleteExtra(b.dataset.unextra); await reload(); } catch (e) { alert(e.message); }
   }));
+  $("app").querySelectorAll("[data-goweek]").forEach((a) => (a.onclick = (e) => { e.preventDefault(); goToWeek(a.dataset.goweek); }));
   $("app").querySelectorAll("[data-approve]").forEach((b) => (b.onclick = () => decide(b.dataset.approve, "approved")));
   $("app").querySelectorAll("[data-decline]").forEach((b) => (b.onclick = () => decide(b.dataset.decline, "declined")));
   $("app").querySelectorAll("[data-cancel]").forEach((b) => (b.onclick = async () => {
@@ -934,7 +950,7 @@ function leaveItem(l, { own, decide }) {
   } else if (isAdmin() && !own && l.status === "approved") {
     extra += `<div class="row" style="margin-top:6px"><button class="btn danger" data-remove="${l.id}">Remove</button></div>`;
   }
-  return `<li><div class="row"><b>${own ? "" : esc(p?.name) + " · "}${when}</b>${kind}<span class="spacer"></span>${status}</div>
+  return `<li><div class="row"><b>${own ? "" : esc(p?.name) + " · "}<a href="#" class="goweek" data-goweek="${l.first_day}" title="See the rota for this week">${when}</a></b>${kind}<span class="spacer"></span>${status}</div>
     <div class="muted small">${l.kind === "holiday" && l.days != null ? `${num(l.days)} holiday day${Number(l.days) === 1 ? "" : "s"}` : ""}${l.kind === "holiday" && l.days != null && l.note ? " · " : ""}${l.note ? esc(l.note) : ""}</div>${extra}</li>`;
 }
 
