@@ -81,6 +81,7 @@
   .chip.gap { background: var(--danger-soft); color: var(--danger); font-weight: 500; }
   .chip.clash { background: var(--warn-soft); color: var(--warn-ink); }
   .chip.rest { background: var(--shade); color: var(--muted); }
+  .chip.reqrest { background: transparent; color: var(--muted); border: 1px dashed var(--muted); }
   .cal { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
   .cal .hd { font-size: 12px; color: var(--muted); text-align: center; font-weight: 600; padding: 2px 0; }
   .cal .day { background: var(--card); border-radius: 8px; min-height: 76px; padding: 4px; cursor: pointer; overflow: hidden; border: 2px solid transparent; min-width: 0; }
@@ -164,7 +165,7 @@ const TODAY = iso(new Date());
 
 // ---- State -----------------------------------------------------------------------------------------
 const S = {
-  tab: "rota", week: monday(TODAY), year: Number(TODAY.slice(0, 4)), month: TODAY.slice(0, 7), booking: { personId: "", kind: "rest", start: null }, saving: false,
+  tab: "rota", week: monday(TODAY), year: Number(TODAY.slice(0, 4)), month: TODAY.slice(0, 7), booking: { personId: "", kind: "rest", start: null }, ask: { kind: null, start: null }, saving: false,
   places: [], people: [], shifts: [], leave: [], closures: [], logins: [], extras: [], me: null,
 };
 const isAdmin = () => !!S.me?.is_admin;
@@ -409,7 +410,7 @@ function chipsFor(p, d) {
   const out = [];
   for (const l of leaveOn(p.id, d)) {
     if (l.kind === "holiday") out.push(`<span class="chip ${l.status === "approved" ? "hol" : "req"}">${l.status === "approved" ? "Holiday" : "Hol?"}</span>`);
-    else if (l.kind === "rest") out.push(`<span class="chip rest">Day off</span>`);
+    else if (l.kind === "rest") out.push(l.status === "approved" ? `<span class="chip rest">Day off</span>` : `<span class="chip reqrest">Off?</span>`);
     else out.push(`<span class="chip sick">${l.kind === "sick" ? "Sick" : "Off"}</span>`);
   }
   for (const s of S.shifts.filter((s) => s.person_id === p.id && s.day === d)) {
@@ -560,7 +561,7 @@ async function copyLastWeek() {
 const KIND = { rest: ["Day off", "rest"], holiday: ["Holiday", "hol"], sick: ["Sick", "sick"] };
 const addMonths = (m, n) => { const [y, mo] = m.split("-").map(Number); return iso(new Date(y, mo - 1 + n, 1)).slice(0, 7); };
 const firstName = (p) => (p?.name ?? "?").split(" ")[0];
-const chipClass = (l) => (l.kind === "holiday" ? (l.status === "approved" ? "hol" : "req") : l.kind === "rest" ? "rest" : "sick");
+const chipClass = (l) => (l.kind === "holiday" ? (l.status === "approved" ? "hol" : "req") : l.kind === "rest" ? (l.status === "approved" ? "rest" : "reqrest") : "sick");
 
 function renderCalendar() {
   const admin = isAdmin();
@@ -585,6 +586,17 @@ function renderCalendar() {
     html += `<div class="card"><select id="bkWho"><option value="">Just looking: tap a day to see who's off</option>${activePeople().filter((p) => p.days_per_week > 0 || p.tracks_holiday || p.is_admin).map((p) => `<option value="${p.id}" ${p.id === B.personId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
       ${bp ? `<div class="seg">${Object.entries(KIND).map(([k, [label, cls]]) => `<button class="${cls} ${B.kind === k ? "on" : ""}" data-kind="${k}">${label}</button>`).join("")}</div>` : ""}
       <p class="muted small" style="margin:8px 0 0">${hint}</p></div>`;
+  } else if (S.me) {
+    const A = S.ask;
+    const a = S.me.tracks_holiday ? allowance(S.me, Number(m.slice(0, 4))) : null;
+    let hint = !A.kind ? "Pick Day off or Holiday, then tap the days on the calendar. Your manager gets the request."
+      : A.kind === "rest" ? "Tap the day you'd like off."
+      : A.start ? `Holiday from <b>${dayLabel(A.start)}</b>. Now tap the last day (the same day again for just one). <a href="#" id="cancelAsk">Cancel</a>`
+      : "Tap the first day of your holiday, then the last day.";
+    if (a && A.kind === "holiday") hint += ` <b>${num(a.left)}</b> holiday days left.`;
+    html += `<div class="card"><b>Ask for time off</b>
+      <div class="seg">${[["rest", "Day off", "rest"], ["holiday", "Holiday", "hol"]].map(([k, label, cls]) => `<button class="${cls} ${A.kind === k ? "on" : ""}" data-ask="${k}">${label}</button>`).join("")}</div>
+      <p class="muted small" style="margin:8px 0 0">${hint}</p></div>`;
   }
 
   html += `<div class="cal">${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => `<div class="hd">${d}</div>`).join("")}`;
@@ -592,7 +604,7 @@ function renderCalendar() {
     for (let i = 0; i < 6; i++) {
       const d = addDays(wk, i);
       const c = closureOn(d);
-      const cls = ["day", d.startsWith(m) ? "" : "out", d === TODAY ? "today" : "", c ? "closed" : "", bp && d === B.start ? "start" : ""].join(" ");
+      const cls = ["day", d.startsWith(m) ? "" : "out", d === TODAY ? "today" : "", c ? "closed" : "", (bp && d === B.start) || (!admin && d === S.ask.start) ? "start" : ""].join(" ");
       let inner = `<div class="n">${Number(d.slice(8))}</div>`;
       if (c) inner += `<div class="cl">${esc(c.name)}</div>`;
       else {
@@ -612,9 +624,12 @@ function renderCalendar() {
   if ($("bkWho")) $("bkWho").onchange = () => { B.personId = $("bkWho").value; B.start = null; render(); };
   $("app").querySelectorAll("[data-kind]").forEach((b) => (b.onclick = () => { B.kind = b.dataset.kind; B.start = null; render(); }));
   if ($("cancelStart")) $("cancelStart").onclick = (e) => { e.preventDefault(); B.start = null; render(); };
+  if ($("cancelAsk")) $("cancelAsk").onclick = (e) => { e.preventDefault(); S.ask.start = null; render(); };
+  $("app").querySelectorAll("[data-ask]").forEach((b) => (b.onclick = () => { S.ask.kind = S.ask.kind === b.dataset.ask ? null : b.dataset.ask; S.ask.start = null; render(); }));
   $("app").querySelectorAll(".cal .day").forEach((cell) => (cell.onclick = () => {
     const d = cell.dataset.day;
     if (closureOn(d)) return;
+    if (!admin && S.ask.kind) return askDay(d);
     if (!bp) return daySheet(d);
     if (S.saving) return;
     const has = S.leave.find((l) => l.person_id === bp.id && counts(l) && l.first_day <= d && l.last_day >= d);
@@ -781,8 +796,8 @@ function renderHolidays() {
     html += `<div class="card"><h2>My holiday</h2>
       <div class="stats"><div><b>${num(a.left)}</b>left to book</div><div><b>${num(a.used)}</b>booked</div><div><b>${num(a.waiting)}</b>waiting</div></div>
       <p class="muted small">You choose ${num(a.base)} days a year${a.extra ? `, plus ${a.extras.map((e) => `${num(e.days)} ${esc(e.reason.toLowerCase())}`).join(" and ")} this year` : ""}. Bank holidays and the Christmas closure are given on top.</p>
-      <button class="btn" id="askOff">Request time off</button></div>`;
-    const mine = S.leave.filter((l) => l.person_id === S.me.id && l.kind !== "rest" && l.first_day.startsWith(String(y))).sort((a, b) => b.first_day.localeCompare(a.first_day));
+      <button class="btn" id="askOff">Ask for time off</button></div>`;
+    const mine = S.leave.filter((l) => l.person_id === S.me.id && !(l.kind === "rest" && l.status === "approved") && l.first_day.startsWith(String(y))).sort((a, b) => b.first_day.localeCompare(a.first_day));
     html += `<div class="card"><h2>My requests</h2>${mine.length ? `<ul class="list">${mine.map((l) => leaveItem(l, { own: true })).join("")}</ul>` : `<p class="muted">None this year.</p>`}</div>`;
   }
 
@@ -891,7 +906,7 @@ function extraSheet(y) {
 function leaveItem(l, { own, decide }) {
   const p = person(l.person_id);
   const when = l.first_day === l.last_day ? dayLabel(l.first_day) : `${dayLabel(l.first_day)} – ${dayLabel(l.last_day)}`;
-  const kind = l.kind === "holiday" ? "" : l.kind === "sick" ? ` <span class="chip sick">Sick</span>` : ` <span class="chip sick">Other</span>`;
+  const kind = l.kind === "holiday" ? "" : l.kind === "rest" ? ` <span class="chip rest">Day off</span>` : l.kind === "sick" ? ` <span class="chip sick">Sick</span>` : ` <span class="chip sick">Other</span>`;
   const status = { requested: `<span class="chip req">Waiting</span>`, approved: `<span class="chip hol">Approved</span>`, declined: `<span class="chip gap">Declined</span>`, cancelled: `<span class="muted small">Cancelled</span>` }[l.status];
   let extra = "";
   if (decide) {
@@ -906,50 +921,79 @@ function leaveItem(l, { own, decide }) {
     extra += `<div class="row" style="margin-top:6px"><button class="btn danger" data-remove="${l.id}">Remove</button></div>`;
   }
   return `<li><div class="row"><b>${own ? "" : esc(p?.name) + " · "}${when}</b>${kind}<span class="spacer"></span>${status}</div>
-    <div class="muted small">${num(l.days)} day${Number(l.days) === 1 ? "" : "s"}${l.note ? " · " + esc(l.note) : ""}</div>${extra}</li>`;
+    <div class="muted small">${l.kind === "holiday" ? `${num(l.days)} holiday day${Number(l.days) === 1 ? "" : "s"}` : ""}${l.kind === "holiday" && l.note ? " · " : ""}${l.note ? esc(l.note) : ""}</div>${extra}</li>`;
 }
 
 async function decide(id, status) {
-  try { await api.updateLeave(id, { status, decided_at: new Date().toISOString() }); await reload(); }
-  catch (e) { alert("Couldn't save: " + e.message); }
+  const l = S.leave.find((x) => x.id === id);
+  try {
+    await api.updateLeave(id, { status, decided_at: new Date().toISOString() });
+    if (l) {
+      if (status === "approved") await api.clearShifts(l.person_id, l.first_day, l.last_day);
+      await reloadData();
+      const mons = [];
+      for (let m = monday(l.first_day); m <= l.last_day; m = addDays(m, 7)) mons.push(m);
+      await recount(person(l.person_id), mons);
+    }
+    await reload();
+  } catch (e) { alert("Couldn't save: " + e.message); }
 }
 
-function requestSheet(forPerson, asAdmin) {
-  const people = activePeople().filter((p) => p.tracks_holiday || asAdmin);
+/** Staff asking from the calendar: one tap for a day off, first and last day for a holiday. */
+function askDay(d) {
+  const A = S.ask;
+  if (d < TODAY) return alert("Pick a day that's still to come. Ask the manager about days that have gone.");
+  if (A.kind === "rest") return requestSheet(S.me, false, { first: d, last: d, kind: "rest" });
+  if (!A.start) { A.start = d; return render(); }
+  const [f, l] = A.start <= d ? [A.start, d] : [d, A.start];
+  A.start = null;
+  render();
+  requestSheet(S.me, false, { first: f, last: l, kind: "holiday" });
+}
+
+function requestSheet(forPerson, asAdmin, pre = {}) {
+  const people = activePeople().filter((p) => p.tracks_holiday || p.days_per_week > 0 || asAdmin);
+  const first = pre.first ?? addDays(TODAY, 1), last = pre.last ?? first;
+  let kind = pre.kind ?? "holiday", used = 0;
+  const kinds = [["holiday", "Holiday"], ["rest", "Weekly day off"], ["sick", "Sick"], ["other", "Other time off"]];
   openSheet(`
-    <h2>${asAdmin ? "Add time off" : "Request time off"}</h2>
+    <h2>${asAdmin ? "Add time off" : "Ask for time off"}</h2>
     ${asAdmin ? `<label>Who</label><select id="rqWho">${people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
-      <label>What</label><select id="rqKind"><option value="holiday">Holiday</option><option value="rest">Weekly day off</option><option value="sick">Sick</option><option value="other">Other time off</option></select>` : ""}
-    <div class="grid2"><div><label>First day off</label><input type="date" id="rqFirst" value="${addDays(TODAY, 1)}"></div><div><label>Last day off</label><input type="date" id="rqLast" value="${addDays(TODAY, 1)}"></div></div>
-    <label>Holiday days this uses</label><input type="number" id="rqDays" min="0" step="0.5" ${asAdmin ? "" : "readonly"}>
-    <p class="muted small" id="rqHelp"></p>
+      <label>What</label><select id="rqKind">${kinds.map(([k, t]) => `<option value="${k}" ${k === kind ? "selected" : ""}>${t}</option>`).join("")}</select>`
+      : `<div class="seg" style="margin-top:0"><button class="rest" data-rqkind="rest">Day off</button><button class="hol" data-rqkind="holiday">Holiday</button></div>`}
+    <div class="grid2"><div><label>First day off</label><input type="date" id="rqFirst" value="${first}"></div><div><label>Last day off</label><input type="date" id="rqLast" value="${last}"></div></div>
+    ${asAdmin ? `<label>Holiday days this uses</label><input type="number" id="rqDays" min="0" step="0.5">` : ""}
+    <p class="small" id="rqHelp" style="margin:10px 0 0"></p>
     <label>Note (optional)</label><input id="rqNote" maxlength="200" placeholder="${asAdmin ? "" : "e.g. family wedding"}">
     <div class="msg bad" id="rqErr" hidden></div>
     <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" id="rqSend">${asAdmin ? "Add" : "Send request"}</button></div>`);
   const who = () => (asAdmin ? person($("rqWho").value) : forPerson);
   const update = () => {
     const f = $("rqFirst").value, l = $("rqLast").value, p = who();
+    if (asAdmin) kind = $("rqKind").value;
+    else $("sheet").querySelectorAll("[data-rqkind]").forEach((b) => b.classList.toggle("on", b.dataset.rqkind === kind));
     if (!f || !l || l < f) { $("rqHelp").textContent = "The last day can't be before the first."; return; }
-    const kind = asAdmin ? $("rqKind").value : "holiday";
-    const n = kind === "holiday" ? daysUsed(p, f, l) : 0;
-    $("rqDays").value = n;
-    const closed = openDays(f, l).length !== [...Array(400).keys()].map((i) => addDays(f, i)).filter((d) => d <= l && !isSunday(d)).length;
-    const a = allowance(p, Number(f.slice(0, 4)));
-    $("rqHelp").textContent = kind === "rest" ? "A weekly day off. It doesn't use holiday." : kind !== "holiday" ? "Sickness and other time off don't come out of holiday."
-      : `Sundays${closed ? ", bank holidays and closures" : ""} don't count.${p.days_per_week >= 5 ? " The first day off in a week is the normal weekly day off, so it's free." : ""} ${p.days_per_week < 6 ? `At most ${Math.ceil(p.days_per_week)} a week (${p.name}'s working days), one fewer in a bank holiday week. ` : ""}${num(a.left)} left to book in ${f.slice(0, 4)}.`;
+    if (!openDays(f, l).length) { $("rqHelp").textContent = "Those days are all Sundays or closures."; return; }
+    used = kind === "holiday" ? daysUsed(p, f, l) : 0;
+    if (asAdmin) $("rqDays").value = used;
+    const a = p.tracks_holiday ? allowance(p, Number(f.slice(0, 4))) : null;
+    $("rqHelp").innerHTML = kind !== "holiday" ? (kind === "rest" ? "A day off doesn't use holiday." : "Doesn't use holiday.")
+      : `Uses <b>${num(used)}</b> holiday day${used === 1 ? "" : "s"}${a ? ` · ${num(a.left - used)} left after this` : ""}`
+        + (used === 0 && p.days_per_week >= 5 ? ` <span class="muted">(the first day off in a week is ${asAdmin ? "their" : "your"} weekly day off)</span>` : "");
   };
   ["rqFirst", "rqLast"].forEach((i) => ($(i).oninput = () => { if ($("rqLast").value < $("rqFirst").value) $("rqLast").value = $("rqFirst").value; update(); }));
   if (asAdmin) { $("rqWho").onchange = update; $("rqKind").onchange = update; }
+  else $("sheet").querySelectorAll("[data-rqkind]").forEach((b) => (b.onclick = () => { kind = b.dataset.rqkind; update(); }));
   update();
   $("rqSend").onclick = async () => {
     const f = $("rqFirst").value, l = $("rqLast").value, p = who();
     const err = (m) => { $("rqErr").textContent = m; $("rqErr").hidden = false; };
     if (!f || !l || l < f) return err("Check the dates.");
+    if (!openDays(f, l).length) return err("Those days are all Sundays or closures.");
     if (!asAdmin && f < TODAY) return err("Requests are for days still to come. Ask the manager to add past days.");
-    const kind = asAdmin ? $("rqKind").value : "holiday";
-    const days = Number($("rqDays").value) || 0;
-    const a = allowance(p, Number(f.slice(0, 4)));
-    if (kind === "holiday" && !asAdmin && days > a.left) return err(`That's ${num(days)} days but there are only ${num(a.left)} left to book.`);
+    const days = asAdmin ? Number($("rqDays").value) || 0 : used;
+    const a = p.tracks_holiday ? allowance(p, Number(f.slice(0, 4))) : null;
+    if (kind === "holiday" && !asAdmin && a && days > a.left) return err(`That's ${num(days)} days but there are only ${num(a.left)} left to book.`);
     const row = { person_id: p.id, first_day: f, last_day: l, days, kind, note: $("rqNote").value.trim() || null, status: asAdmin ? "approved" : "requested" };
     if (asAdmin) row.decided_at = new Date().toISOString();
     try {
