@@ -698,9 +698,11 @@ function daySheet(d) {
   openSheet(`<h2>${fmt(d, { weekday: "long", day: "numeric", month: "long" })}</h2>
     ${items ? `<ul class="list">${items}</ul>` : `<p class="muted">Nobody's off.</p>`}
     ${admin ? `<label>Book someone off</label><select id="dsWho">${activePeople().filter((p) => (p.days_per_week > 0 || p.tracks_holiday || p.is_admin) && !off.some((l) => l.person_id === p.id)).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
-      <div class="seg">${Object.entries(KIND).map(([k, [label, cls]]) => `<button class="${cls}" data-dsbook="${k}">${label}</button>`).join("")}</div>` : ""}
+      <div class="seg">${Object.entries(KIND).map(([k, [label, cls]]) => `<button class="${cls}" data-dsbook="${k}">${label}</button>`).join("")}</div>`
+      : S.me && d >= TODAY ? `<label>Ask for time off</label><div class="seg"><button class="rest" data-askday="rest">This day off</button><button class="hol" data-askday="holiday">Holiday from here</button></div>` : ""}
     <div class="row" style="margin-top:12px"><button class="btn ghost" id="dsWeek">See this week's rota</button><span class="spacer"></span><button class="btn ghost" data-close>Close</button></div>`);
   $("dsWeek").onclick = () => goToWeek(d);
+  $("sheet").querySelectorAll("[data-askday]").forEach((b) => (b.onclick = () => requestSheet(S.me, false, { first: d, last: d, kind: b.dataset.askday })));
   $("sheet").querySelectorAll("[data-clear]").forEach((b) => (b.onclick = () => { closeSheet(); setDay(person(b.dataset.clear), d, null); }));
   $("sheet").querySelectorAll("[data-dsbook]").forEach((b) => (b.onclick = () => {
     const p = person($("dsWho").value), k = b.dataset.dsbook;
