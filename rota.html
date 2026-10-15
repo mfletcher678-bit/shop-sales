@@ -1261,14 +1261,20 @@ async function pushCheck() {
 function pushCard() {
   let asked = false;
   try { asked = localStorage.getItem("rotaPushAsked") === "1"; } catch {}
-  if (!S.me || S.pushOn || asked || !pushSupported() || Notification.permission === "denied") return "";
+  if (!S.me || S.pushOn || asked) return "";
+  // iPhones only allow notifications once the page is on the home screen.
+  if (!pushSupported() && /iPhone|iPad|iPod/.test(navigator.userAgent) && !navigator.standalone) {
+    return `<div class="card row" id="pushCard"><div style="flex:1;min-width:200px"><b>Get notifications?</b><div class="muted small">On an iPhone: tap the Share button, then <b>Add to Home Screen</b>. Open the Rota from the new icon and you'll be able to turn them on.</div></div>
+      <button class="btn ghost" id="pushLater">Got it</button></div>`;
+  }
+  if (!pushSupported() || Notification.permission === "denied") return "";
   return `<div class="card row" id="pushCard"><div style="flex:1;min-width:200px"><b>Get notifications?</b><div class="muted small">This phone can tell you when ${pushWhat()}.</div></div>
     <button class="btn ghost" id="pushLater">Not now</button><button class="btn" id="pushYes">Turn on</button></div>`;
 }
 function wirePushCard() {
   if (!$("pushCard")) return;
   $("pushLater").onclick = () => { try { localStorage.setItem("rotaPushAsked", "1"); } catch {} $("pushCard").remove(); };
-  $("pushYes").onclick = async () => {
+  if ($("pushYes")) $("pushYes").onclick = async () => {
     try { $("pushYes").disabled = true; await pushOn(); $("pushCard").remove(); await api.pushTest().catch(() => {}); }
     catch (e) { $("pushYes").disabled = false; alert(e.message); }
   };
