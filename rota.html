@@ -84,6 +84,10 @@
   .p2 { background: var(--p2s); color: var(--p2); } .p3 { background: var(--p3s); color: var(--p3); }
   .p4 { background: var(--p4s); color: var(--p4); } .p5 { background: var(--p5s); color: var(--p5); }
   .legend { margin-top: 8px; font-size: 13px; }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .choice { border: 2px solid transparent; border-radius: 12px; padding: 14px 10px; font: inherit; font-weight: 600; cursor: pointer; }
+  .choice.on { border-color: currentColor; }
+  .choice.off { background: var(--shade); color: var(--muted); }
   .list { list-style: none; margin: 0; padding: 0; }
   .list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
   .list li:last-child { border-bottom: none; }
@@ -257,7 +261,6 @@ function demoApi(as) {
   for (const start of [prev, wk]) for (const [name, days] of Object.entries(pattern)) days.forEach((pl, i) => {
     if (pl != null) shifts.push({ id: id(), person_id: "pe_" + name.toLowerCase(), day: addDays(start, i), place_id: "pl" + pl });
   });
-  shifts.push({ id: id(), person_id: "pe_ross", day: addDays(wk, 1), place_id: "pl4" }); // Pocklington + Hull cover
   const leave = [
     { id: id(), person_id: "pe_kyle", first_day: addDays(wk, 14), last_day: addDays(wk, 19), days: 5, kind: "holiday", status: "requested", note: "Family wedding", created_at: TODAY },
     { id: id(), person_id: "pe_jamie", first_day: addDays(wk, 16), last_day: addDays(wk, 17), days: 2, kind: "holiday", status: "requested", note: null, created_at: TODAY },
@@ -425,17 +428,17 @@ function editCell(p, d) {
   const current = S.shifts.filter((s) => s.person_id === p.id && s.day === d).map((s) => s.place_id);
   const off = leaveOn(p.id, d);
   const note = off.length ? `<div class="msg warn">${esc(p.name)} has ${off.map((l) => l.status === "approved" ? (l.kind === "holiday" ? "a holiday" : l.kind === "sick" ? "sick leave" : "time off") : "a holiday request waiting").join(" and ")} that day.</div>` : "";
+  // One shop a day: tap where they are and it's saved.
   openSheet(`
     <h2>${esc(p.name)} · ${dayLabel(d)}</h2>${note}
-    ${S.places.filter((x) => x.active).map((pl) => `<label class="check"><input type="checkbox" value="${pl.id}" ${current.includes(pl.id) ? "checked" : ""}> <span class="chip ${placeClass(pl)}">${esc(shortName(pl.name))}</span> ${esc(pl.name)}</label>`).join("")}
-    <p class="muted small">Tick two for a split day, e.g. Pocklington and Hull cover. Nothing ticked means a day off.</p>
-    <div class="row"><button class="btn ghost" id="cellOff">Day off</button><span class="spacer"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" id="cellSave">Save</button></div>`);
+    <div class="choices">${S.places.filter((x) => x.active).map((pl) => `<button class="choice ${placeClass(pl)} ${current.includes(pl.id) ? "on" : ""}" data-place="${pl.id}">${esc(pl.name)}</button>`).join("")}
+      <button class="choice off ${current.length ? "" : "on"}" data-place="">Day off</button></div>
+    <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn ghost" data-close>Cancel</button></div>`);
   const save = async (ids) => {
     try { await api.setCell(p.id, d, ids); await loadWeek(); closeSheet(); render(); }
     catch (e) { alert("Couldn't save: " + e.message); }
   };
-  $("cellSave").onclick = () => save([...$("sheet").querySelectorAll("input[type=checkbox]:checked")].map((i) => i.value));
-  $("cellOff").onclick = () => save([]);
+  $("sheet").querySelectorAll("[data-place]").forEach((b) => (b.onclick = () => save(b.dataset.place ? [b.dataset.place] : [])));
 }
 
 async function copyLastWeek() {
