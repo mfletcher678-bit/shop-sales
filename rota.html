@@ -146,7 +146,7 @@ const TODAY = iso(new Date());
 // ---- State -----------------------------------------------------------------------------------------
 const S = {
   tab: "rota", week: monday(TODAY), year: Number(TODAY.slice(0, 4)),
-  places: [], people: [], shifts: [], leave: [], closures: [], logins: [], me: null,
+  places: [], people: [], shifts: [], leave: [], closures: [], logins: [], extras: [], me: null,
 };
 const isAdmin = () => !!S.me?.is_admin;
 const person = (id) => S.people.find((p) => p.id === id);
@@ -176,7 +176,11 @@ function allowance(p, year) {
   const mine = S.leave.filter((l) => l.person_id === p.id && l.kind === "holiday" && l.first_day.startsWith(String(year)));
   const used = mine.filter((l) => l.status === "approved").reduce((s, l) => s + Number(l.days), 0);
   const waiting = mine.filter((l) => l.status === "requested").reduce((s, l) => s + Number(l.days), 0);
-  const chosen = Number(p.chosen_days);
+  const base = Number(p.chosen_days);
+  // Extra days for this year only: carried over, earned by working extra, anything else agreed.
+  const extras = S.extras.filter((e) => e.person_id === p.id && e.year === year);
+  const extra = extras.reduce((s, e) => s + Number(e.days), 0);
+  const chosen = base + extra;
   // The legal minimum is 5.6 weeks (28 days at most). Full-timers get every bank holiday and
   // closure day off on top of their normal day off, so each counts in full (at most their working
   // days in any one week). Part-timers only gain the ones on their days: roughly their share of six.
@@ -189,10 +193,10 @@ function allowance(p, year) {
   const share = dpw >= 5 ? 1 : dpw / 6;
   let fromClosures = 0;
   for (const n of perWeek.values()) fromClosures += Math.min(n * share, dpw);
-  const given = chosen + fromClosures;
+  const given = base + fromClosures;
   const minimum = Math.min(28, 5.6 * dpw);
   const christmasSet = S.closures.some((c) => c.kind === "closure" && c.day.startsWith(`${year}-12`));
-  return { chosen, used, waiting, left: chosen - used - waiting, given, minimum, short: given + 0.05 < minimum, christmasSet };
+  return { chosen, base, extra, extras, used, waiting, left: chosen - used - waiting, given, minimum, short: given + 0.05 < minimum, christmasSet };
 }
 const leaveOn = (personId, d) => S.leave.filter((l) => l.person_id === personId && l.first_day <= d && l.last_day >= d && (l.status === "approved" || l.status === "requested"));
 
@@ -218,6 +222,7 @@ function supaApi() {
       const data = { places: must(places), people: must(people), closures: must(closures), leave: must(leave) };
       data.me = data.people.find((p) => p.user_id === userId) ?? null;
       data.logins = data.me?.is_admin ? must(await db.from("rota_logins").select("*")) : [];
+      data.extras = data.me ? must(await db.from("rota_extra_days").select("*").order("created_at")) : [];
       return data;
     },
     async shifts(from, to) { return must(await db.from("rota_shifts").select("*").gte("day", from).lte("day", to)); },
@@ -241,6 +246,8 @@ function supaApi() {
     async savePlace(p) { must(await db.from("rota_places").update({ needs_cover: p.needs_cover }).eq("id", p.id)); },
     async addClosures(rows) { must(await db.from("rota_closures").upsert(rows)); },
     async deleteClosure(day) { must(await db.from("rota_closures").delete().eq("day", day)); },
+    async addExtra(row) { must(await db.from("rota_extra_days").insert(row)); },
+    async deleteExtra(id) { must(await db.from("rota_extra_days").delete().eq("id", id)); },
   };
 }
 
@@ -270,14 +277,17 @@ function demoApi(as) {
   ];
   shifts.splice(0, shifts.length, ...shifts.filter((s) => !(s.person_id === "pe_ross" && s.day === addDays(wk, 3))));
   const closures = [];
-  const store = { places, people, shifts, leave, closures, logins: [{ person_id: "pe_ross", email: "ross@example.com" }] };
+  const store = { places, people, shifts, leave, closures, logins: [{ person_id: "pe_ross", email: "ross@example.com" }],
+    extras: [{ id: id(), person_id: "pe_kyle", year: Number(TODAY.slice(0, 4)), days: 4, reason: "Carried over" }] };
   const me = as === "staff" ? people[1] : people[0];
   const later = () => new Promise((r) => setTimeout(r, 30));
   return {
     async session() { return { user: { id: me.user_id, email: me.name.toLowerCase() + "@example.com" } }; },
     async signIn() {}, async signOut() { location.reload(); }, async setPassword() {}, async resetPassword() {}, async claim() {},
     async loadClosures() {},
-    async load() { await later(); return { places, people, closures: store.closures, leave, me, logins: me.is_admin ? store.logins : [] }; },
+    async load() { await later(); return { places, people, closures: store.closures, leave, me, logins: me.is_admin ? store.logins : [], extras: store.extras }; },
+    async addExtra(row) { store.extras.push({ id: id(), ...row }); },
+    async deleteExtra(eid) { store.extras.splice(store.extras.findIndex((e) => e.id === eid), 1); },
     async shifts(from, to) { return shifts.filter((s) => s.day >= from && s.day <= to); },
     async setCell(personId, day, placeIds) {
       for (let i = shifts.length - 1; i >= 0; i--) if (shifts[i].person_id === personId && shifts[i].day === day) shifts.splice(i, 1);
@@ -467,7 +477,7 @@ function renderHolidays() {
     const a = allowance(S.me, y);
     html += `<div class="card"><h2>My holiday</h2>
       <div class="stats"><div><b>${num(a.left)}</b>left to book</div><div><b>${num(a.used)}</b>booked</div><div><b>${num(a.waiting)}</b>waiting</div></div>
-      <p class="muted small">You choose ${num(a.chosen)} days a year. Bank holidays and the Christmas closure are given on top.</p>
+      <p class="muted small">You choose ${num(a.base)} days a year${a.extra ? `, plus ${a.extras.map((e) => `${num(e.days)} ${esc(e.reason.toLowerCase())}`).join(" and ")} this year` : ""}. Bank holidays and the Christmas closure are given on top.</p>
       <button class="btn" id="askOff">Request time off</button></div>`;
     const mine = S.leave.filter((l) => l.person_id === S.me.id && l.first_day.startsWith(String(y))).sort((a, b) => b.first_day.localeCompare(a.first_day));
     html += `<div class="card"><h2>My requests</h2>${mine.length ? `<ul class="list">${mine.map((l) => leaveItem(l, { own: true })).join("")}</ul>` : `<p class="muted">None this year.</p>`}</div>`;
@@ -477,10 +487,14 @@ function renderHolidays() {
     const waiting = S.leave.filter((l) => l.status === "requested").sort((a, b) => a.first_day.localeCompare(b.first_day));
     html += `<div class="card"><h2>Waiting for you${waiting.length ? ` (${waiting.length})` : ""}</h2>${waiting.length ? `<ul class="list">${waiting.map((l) => leaveItem(l, { decide: true })).join("")}</ul>` : `<p class="muted">No requests waiting.</p>`}
       <button class="btn ghost" id="addOff">Add time off for someone</button></div>`;
+    const yearExtras = S.extras.filter((e) => e.year === y);
+    html += `<div class="card"><div class="row"><h2 style="margin:0">Extra days in ${y}</h2><span class="spacer"></span><button class="btn ghost" id="addExtra">Add extra days</button></div>
+      ${yearExtras.length ? `<ul class="list">${yearExtras.map((e) => `<li class="row"><b>${esc(person(e.person_id)?.name)}</b><span>${num(e.days)} day${Number(e.days) === 1 ? "" : "s"}</span><span class="muted small">${esc(e.reason)}</span><span class="spacer"></span><button class="btn danger" data-unextra="${e.id}">Remove</button></li>`).join("")}</ul>`
+        : `<p class="muted small">Carried over from last year, days earned by working extra, or anything else agreed on top of the normal allowance.</p>`}</div>`;
 
     const rows = activePeople().filter((p) => p.tracks_holiday).map((p) => {
       const a = allowance(p, y);
-      return `<tr><td>${esc(p.name)}<br><span class="muted small">${esc(p.employer)}</span></td><td class="num">${num(a.chosen)}</td><td class="num">${num(a.used)}</td><td class="num">${num(a.waiting)}</td><td class="num"><b>${num(a.left)}</b></td>
+      return `<tr><td>${esc(p.name)}<br><span class="muted small">${esc(p.employer)}</span></td><td class="num">${a.extra ? `${num(a.base)} <span class="muted">+ ${num(a.extra)}</span>` : num(a.chosen)}</td><td class="num">${num(a.used)}</td><td class="num">${num(a.waiting)}</td><td class="num"><b>${num(a.left)}</b></td>
         <td class="num ${a.short ? "" : "muted"}">${a.short ? `<span class="chip gap">${num(a.given)} of ${num(a.minimum)}</span>` : `${num(a.given)} ✓`}</td></tr>`;
     }).join("");
     const anyShort = activePeople().some((p) => p.tracks_holiday && allowance(p, y).short);
@@ -502,6 +516,11 @@ function renderHolidays() {
   $("nextYear").onclick = () => { S.year++; render(); };
   if ($("askOff")) $("askOff").onclick = () => requestSheet(S.me, false);
   if ($("addOff")) $("addOff").onclick = () => requestSheet(null, true);
+  if ($("addExtra")) $("addExtra").onclick = () => extraSheet(y);
+  $("app").querySelectorAll("[data-unextra]").forEach((b) => (b.onclick = async () => {
+    if (!confirm("Remove these extra days?")) return;
+    try { await api.deleteExtra(b.dataset.unextra); await reload(); } catch (e) { alert(e.message); }
+  }));
   $("app").querySelectorAll("[data-approve]").forEach((b) => (b.onclick = () => decide(b.dataset.approve, "approved")));
   $("app").querySelectorAll("[data-decline]").forEach((b) => (b.onclick = () => decide(b.dataset.decline, "declined")));
   $("app").querySelectorAll("[data-cancel]").forEach((b) => (b.onclick = async () => {
@@ -512,6 +531,26 @@ function renderHolidays() {
     if (!confirm("Remove this time off completely?")) return;
     try { await api.deleteLeave(b.dataset.remove); await reload(); } catch (e) { alert(e.message); }
   }));
+}
+
+function extraSheet(y) {
+  const people = activePeople().filter((p) => p.tracks_holiday);
+  openSheet(`<h2>Extra days in ${y}</h2>
+    <label>Who</label><select id="exWho">${people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
+    <div class="grid2"><div><label>Days</label><input type="number" id="exDays" step="0.5" value="1"></div>
+      <div><label>Why</label><select id="exWhy"><option>Carried over from ${y - 1}</option><option>Worked extra days</option><option>Other</option></select></div></div>
+    <label>Note (optional)</label><input id="exNote" maxlength="120" placeholder="e.g. covered Hull on 3 Saturdays">
+    <p class="muted small">Use a minus number to take days off someone's allowance.</p>
+    <div class="msg bad" id="exErr" hidden></div>
+    <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" id="exSave">Add</button></div>`);
+  $("exSave").onclick = async () => {
+    const days = Number($("exDays").value);
+    if (!days) { $("exErr").hidden = false; $("exErr").textContent = "Enter how many days."; return; }
+    const note = $("exNote").value.trim();
+    const reason = $("exWhy").value + (note ? ` (${note})` : "");
+    try { $("exSave").disabled = true; await api.addExtra({ person_id: $("exWho").value, year: y, days, reason }); closeSheet(); await reload(); }
+    catch (e) { $("exSave").disabled = false; $("exErr").hidden = false; $("exErr").textContent = e.message; }
+  };
 }
 
 function leaveItem(l, { own, decide }) {
