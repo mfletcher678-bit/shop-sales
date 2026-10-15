@@ -88,6 +88,7 @@
   .cal .day.today { border-color: var(--accent); }
   .cal .day.closed { background: var(--shade); cursor: default; }
   .cal .day.busy { opacity: 0.4; }
+  .cal .day.start { border: 2px dashed var(--ok); background: var(--ok-soft); }
   .cal .n { font-size: 12px; font-weight: 700; }
   .cal .cl { font-size: 10px; color: var(--muted); line-height: 1.15; margin-top: 2px; }
   .cal .chip { display: block; font-size: 11px; padding: 1px 4px; margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; }
@@ -163,7 +164,7 @@ const TODAY = iso(new Date());
 
 // ---- State -----------------------------------------------------------------------------------------
 const S = {
-  tab: "rota", week: monday(TODAY), year: Number(TODAY.slice(0, 4)), month: TODAY.slice(0, 7), booking: { personId: "", kind: "rest" }, saving: false,
+  tab: "rota", week: monday(TODAY), year: Number(TODAY.slice(0, 4)), month: TODAY.slice(0, 7), booking: { personId: "", kind: "rest", start: null }, saving: false,
   places: [], people: [], shifts: [], leave: [], closures: [], logins: [], extras: [], me: null,
 };
 const isAdmin = () => !!S.me?.is_admin;
@@ -576,9 +577,12 @@ function renderCalendar() {
     let hint = "Pick someone, then tap days to book them off. Tap a day again to clear it. It goes straight onto the rota.";
     if (bp) {
       const a = bp.tracks_holiday ? allowance(bp, Number(m.slice(0, 4))) : null;
-      hint = `Tap days to give ${esc(bp.name)} ${{ rest: "their day off", holiday: "holiday", sick: "sick days" }[B.kind]}. Tap again to clear.${a ? ` <b>${num(a.left)}</b> holiday days left in ${m.slice(0, 4)}.` : ""}`;
+      hint = B.kind === "rest" ? `Tap days to give ${esc(bp.name)} their day off. Tap again to clear.`
+        : B.start ? `${B.kind === "holiday" ? "Holiday" : "Sick"} from <b>${dayLabel(B.start)}</b>. Now tap the last day (the same day again for just one). <a href="#" id="cancelStart">Cancel</a>`
+        : `Tap the first day of ${esc(bp.name)}'s ${B.kind === "holiday" ? "holiday" : "sickness"}, then the last day. Tap a day that's already booked to clear it.`;
+      if (a) hint += ` <b>${num(a.left)}</b> holiday days left in ${m.slice(0, 4)}.`;
     }
-    html += `<div class="card"><select id="bkWho"><option value="">Just looking: tap a day to see who's off</option>${activePeople().filter((p) => p.days_per_week > 0 || p.tracks_holiday).map((p) => `<option value="${p.id}" ${p.id === B.personId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
+    html += `<div class="card"><select id="bkWho"><option value="">Just looking: tap a day to see who's off</option>${activePeople().filter((p) => p.days_per_week > 0 || p.tracks_holiday || p.is_admin).map((p) => `<option value="${p.id}" ${p.id === B.personId ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
       ${bp ? `<div class="seg">${Object.entries(KIND).map(([k, [label, cls]]) => `<button class="${cls} ${B.kind === k ? "on" : ""}" data-kind="${k}">${label}</button>`).join("")}</div>` : ""}
       <p class="muted small" style="margin:8px 0 0">${hint}</p></div>`;
   }
@@ -588,7 +592,7 @@ function renderCalendar() {
     for (let i = 0; i < 6; i++) {
       const d = addDays(wk, i);
       const c = closureOn(d);
-      const cls = ["day", d.startsWith(m) ? "" : "out", d === TODAY ? "today" : "", c ? "closed" : ""].join(" ");
+      const cls = ["day", d.startsWith(m) ? "" : "out", d === TODAY ? "today" : "", c ? "closed" : "", bp && d === B.start ? "start" : ""].join(" ");
       let inner = `<div class="n">${Number(d.slice(8))}</div>`;
       if (c) inner += `<div class="cl">${esc(c.name)}</div>`;
       else {
@@ -605,16 +609,25 @@ function renderCalendar() {
   $("prevMonth").onclick = () => { S.month = addMonths(S.month, -1); render(); };
   $("nextMonth").onclick = () => { S.month = addMonths(S.month, 1); render(); };
   if ($("thisMonth")) $("thisMonth").onclick = (e) => { e.preventDefault(); S.month = TODAY.slice(0, 7); render(); };
-  if ($("bkWho")) $("bkWho").onchange = () => { B.personId = $("bkWho").value; render(); };
-  $("app").querySelectorAll("[data-kind]").forEach((b) => (b.onclick = () => { B.kind = b.dataset.kind; render(); }));
+  if ($("bkWho")) $("bkWho").onchange = () => { B.personId = $("bkWho").value; B.start = null; render(); };
+  $("app").querySelectorAll("[data-kind]").forEach((b) => (b.onclick = () => { B.kind = b.dataset.kind; B.start = null; render(); }));
+  if ($("cancelStart")) $("cancelStart").onclick = (e) => { e.preventDefault(); B.start = null; render(); };
   $("app").querySelectorAll(".cal .day").forEach((cell) => (cell.onclick = () => {
     const d = cell.dataset.day;
     if (closureOn(d)) return;
     if (!bp) return daySheet(d);
     if (S.saving) return;
-    cell.classList.add("busy");
     const has = S.leave.find((l) => l.person_id === bp.id && counts(l) && l.first_day <= d && l.last_day >= d);
-    setDay(bp, d, has?.kind === B.kind ? null : B.kind);
+    // Day off: one tap. Holiday and sick: tap the first day, then the last.
+    if (B.kind === "rest" || (!B.start && has?.kind === B.kind)) {
+      cell.classList.add("busy");
+      return setDay(bp, d, has?.kind === B.kind ? null : B.kind);
+    }
+    if (!B.start) { B.start = d; return render(); }
+    const [f, l] = B.start <= d ? [B.start, d] : [d, B.start];
+    B.start = null;
+    render();
+    rangeSheet(bp, f, l, B.kind);
   }));
 }
 
@@ -627,11 +640,83 @@ function daySheet(d) {
     ${admin && l.status === "approved" ? `<button class="btn danger" data-clear="${l.person_id}">Clear this day</button>` : ""}</li>`).join("");
   openSheet(`<h2>${fmt(d, { weekday: "long", day: "numeric", month: "long" })}</h2>
     ${items ? `<ul class="list">${items}</ul>` : `<p class="muted">Nobody's off.</p>`}
-    ${admin ? `<label>Book someone off</label><select id="dsWho">${activePeople().filter((p) => (p.days_per_week > 0 || p.tracks_holiday) && !off.some((l) => l.person_id === p.id)).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
+    ${admin ? `<label>Book someone off</label><select id="dsWho">${activePeople().filter((p) => (p.days_per_week > 0 || p.tracks_holiday || p.is_admin) && !off.some((l) => l.person_id === p.id)).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
       <div class="seg">${Object.entries(KIND).map(([k, [label, cls]]) => `<button class="${cls}" data-dsbook="${k}">${label}</button>`).join("")}</div>` : ""}
     <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn ghost" data-close>Close</button></div>`);
   $("sheet").querySelectorAll("[data-clear]").forEach((b) => (b.onclick = () => { closeSheet(); setDay(person(b.dataset.clear), d, null); }));
-  $("sheet").querySelectorAll("[data-dsbook]").forEach((b) => (b.onclick = () => { const p = person($("dsWho").value); if (!p) return; closeSheet(); setDay(p, d, b.dataset.dsbook); }));
+  $("sheet").querySelectorAll("[data-dsbook]").forEach((b) => (b.onclick = () => {
+    const p = person($("dsWho").value), k = b.dataset.dsbook;
+    if (!p) return;
+    closeSheet();
+    if (k === "rest") setDay(p, d, k); else rangeSheet(p, d, d, k);
+  }));
+}
+
+/** Confirms a holiday or sickness from first to last day, with the holiday it uses. */
+function rangeSheet(p, first, last, kind) {
+  const label = kind === "holiday" ? "Holiday" : "Sick";
+  openSheet(`<h2>${esc(p.name)}: ${label.toLowerCase()}</h2>
+    <div class="grid2"><div><label>First day</label><input type="date" id="rgFirst" value="${first}"></div><div><label>Last day</label><input type="date" id="rgLast" value="${last}"></div></div>
+    <p class="small" id="rgHelp"></p>
+    <div class="msg bad" id="rgErr" hidden></div>
+    <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" id="rgSave">Book ${label.toLowerCase()}</button></div>`);
+  const upd = () => {
+    const f = $("rgFirst").value, l = $("rgLast").value;
+    if (!f || !l || l < f) { $("rgHelp").textContent = "The last day can't be before the first."; return; }
+    const r = tidyRange(f, l);
+    if (!r) { $("rgHelp").textContent = "Those days are all Sundays or closures."; return; }
+    const others = S.leave.filter((x) => x.person_id === p.id && counts(x) && x.first_day <= r[1] && x.last_day >= r[0]);
+    const kept = S.leave.filter((x) => !others.includes(x));
+    let text = `${openDays(r[0], r[1]).length} open day${openDays(r[0], r[1]).length === 1 ? "" : "s"}, ${dayLabel(r[0])} to ${dayLabel(r[1])}. `;
+    if (kind === "holiday" && p.tracks_holiday) {
+      const n = holidayDays(p, { id: "new", person_id: p.id, kind, status: "approved", first_day: r[0], last_day: r[1] }, kept);
+      text += `Uses <b>${num(n)}</b> holiday day${n === 1 ? "" : "s"}${Number(p.days_per_week) >= 5 ? " (the first day off each week is their normal day off)" : ""}.`;
+      if (p.tracks_holiday) {
+        const yr = Number(r[0].slice(0, 4)), a = allowance(p, yr);
+        const back = others.filter((x) => x.kind === "holiday").reduce((s, x) => s + Number(x.days), 0);
+        text += ` ${num(a.left + back - n)} left in ${yr} after this.`;
+      }
+    } else if (kind !== "holiday") text += "Sickness doesn't use holiday.";
+    if (others.length) text += ` <span class="muted">Replaces what's already booked on those days.</span>`;
+    $("rgHelp").innerHTML = text + ` <span class="muted">Any shifts on those days come off the rota.</span>`;
+  };
+  $("rgFirst").oninput = () => { if ($("rgLast").value < $("rgFirst").value) $("rgLast").value = $("rgFirst").value; upd(); };
+  $("rgLast").oninput = upd;
+  upd();
+  $("rgSave").onclick = async () => {
+    const f = $("rgFirst").value, l = $("rgLast").value;
+    if (!f || !l || l < f || !tidyRange(f, l)) { $("rgErr").hidden = false; $("rgErr").textContent = "Check the dates."; return; }
+    closeSheet();
+    S.saving = true;
+    try { await bookRange(p, f, l, kind); }
+    catch (e) { alert("Couldn't save: " + e.message); await reload(); }
+    finally { S.saving = false; }
+  };
+}
+/** Books first–last as one entry: clears what overlaps, joins a same-kind booking either side, empties the rota. */
+async function bookRange(p, first, last, kind) {
+  [first, last] = tidyRange(first, last);
+  for (const x of S.leave.filter((x) => x.person_id === p.id && counts(x) && x.first_day <= last && x.last_day >= first)) {
+    const left = tidyRange(x.first_day, addDays(first, -1)), right = tidyRange(addDays(last, 1), x.last_day);
+    if (!left && !right) { await api.deleteLeave(x.id); continue; }
+    const keep = left ?? right;
+    await api.updateLeave(x.id, { first_day: keep[0], last_day: keep[1] });
+    if (left && right) await api.addLeave({ person_id: x.person_id, first_day: right[0], last_day: right[1], days: 0, kind: x.kind, status: x.status, decided_at: x.decided_at, note: x.note });
+  }
+  await reloadData();
+  const same = S.leave.filter((x) => x.person_id === p.id && x.kind === kind && x.status === "approved");
+  const before = same.find((x) => x.last_day >= prevOpen(first) && x.last_day < first);
+  const after = same.find((x) => x.first_day > last && x.first_day <= nextOpen(last));
+  if (before && after) { await api.updateLeave(before.id, { last_day: after.last_day }); await api.deleteLeave(after.id); }
+  else if (before) await api.updateLeave(before.id, { last_day: last });
+  else if (after) await api.updateLeave(after.id, { first_day: first });
+  else await api.addLeave({ person_id: p.id, first_day: first, last_day: last, days: 0, kind, status: "approved", decided_at: new Date().toISOString(), note: null });
+  await api.clearShifts(p.id, first, last);
+  await reloadData();
+  const mons = [];
+  for (let m = monday(first); m <= last; m = addDays(m, 7)) mons.push(m);
+  await recount(person(p.id), mons);
+  render();
 }
 
 // ---- Booking single days (calendar and rota) ------------------------------------------------------------
