@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Rota">
 <title>Shop Rota</title>
+<link rel="manifest" href="rota.webmanifest">
+<link rel="icon" href="rota-icon-192.png">
+<link rel="apple-touch-icon" href="rota-icon-192.png">
 <style>
   :root {
     --navy: #003661; --accent: #003661; --bg: #eef1f5; --card: #ffffff; --ink: #1b1f24;
@@ -303,6 +306,15 @@ function supaApi() {
     async updateLeave(id, patch) { must(await db.from("rota_leave").update(patch).eq("id", id)); },
     async cancelLeave(id) { must(await db.rpc("rota_cancel_request", { p_id: id })); },
     async askCancel(id, note) { must(await db.rpc("rota_ask_cancel", { p_id: id, p_note: note ?? "" })); },
+    async pushSubscribe(endpoint, p256dh, auth) { must(await db.rpc("push_subscribe", { p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth })); },
+    async pushUnsubscribe(endpoint) { must(await db.rpc("push_unsubscribe", { p_endpoint: endpoint })); },
+    async pushTest() {
+      const token = (await db.auth.getSession()).data.session?.access_token;
+      const r = await fetch(`${PUSH_URL}/test`, { method: "POST", headers: { Authorization: `Bearer ${token}`, apikey: SUPABASE_KEY } });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Couldn't send a test.");
+      if (!j.sent) throw new Error("Nothing reached this phone. Try turning notifications off and on again.");
+    },
     async withdrawCancel(id) { must(await db.rpc("rota_withdraw_cancel", { p_id: id })); },
     async deleteLeave(id) { must(await db.from("rota_leave").delete().eq("id", id)); },
     async savePerson(p) { return must(await db.from("rota_people").upsert(p).select().single()); },
@@ -378,6 +390,7 @@ function demoApi(as) {
     async updateLeave(lid, patch) { Object.assign(leave.find((l) => l.id === lid), patch); },
     async cancelLeave(lid) { Object.assign(leave.find((l) => l.id === lid), { status: "cancelled" }); },
     async askCancel(lid, note) { Object.assign(leave.find((l) => l.id === lid), { cancel_asked_at: new Date().toISOString(), cancel_note: note || null }); },
+    async pushSubscribe() {}, async pushUnsubscribe() {}, async pushTest() {},
     async withdrawCancel(lid) { Object.assign(leave.find((l) => l.id === lid), { cancel_asked_at: null, cancel_note: null }); },
     async deleteLeave(lid) { leave.splice(leave.findIndex((l) => l.id === lid), 1); },
     async savePerson(p) { const e = people.find((x) => x.id === p.id); if (e) return Object.assign(e, p); const n = { id: id(), ...p }; people.push(n); return n; },
@@ -429,6 +442,8 @@ function render() {
   else if (S.tab === "calendar") renderCalendar();
   else if (S.tab === "people" && isAdmin()) renderPeople();
   else renderRota();
+  const card = pushCard();
+  if (card) { $("app").insertAdjacentHTML("afterbegin", card); wirePushCard(); }
 }
 
 function chipsFor(p, d) {
@@ -1206,13 +1221,106 @@ function personSheet(p) {
   };
 }
 
+// ---- Notifications --------------------------------------------------------------------------------------------
+const PUSH_URL = `${SUPABASE_URL}/functions/v1/push`;
+const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const unb64u = (t) => Uint8Array.from(atob(t.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (t.length % 4)) % 4)), (c) => c.charCodeAt(0));
+const pushWhat = () => (isAdmin() ? "someone asks for time off, or wants to change or cancel it" : "your time off is approved or declined, or your rota changes");
+async function pushSubscription() {
+  if (!pushSupported()) return null;
+  const reg = await navigator.serviceWorker.getRegistration();
+  return reg ? reg.pushManager.getSubscription() : null;
+}
+async function pushOn() {
+  if (DEMO) throw new Error("Notifications don't work in the demo.");
+  if ((await Notification.requestPermission()) !== "granted") throw new Error("Notifications are blocked for this page. Allow them in the browser's settings for this site, then try again.");
+  const reg = await navigator.serviceWorker.register("sw.js");
+  await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    const { key } = await (await fetch(`${PUSH_URL}/key`)).json();
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(key) });
+  }
+  const j = sub.toJSON();
+  await api.pushSubscribe(j.endpoint, j.keys.p256dh, j.keys.auth);
+  S.pushOn = true;
+}
+async function pushOff() {
+  const sub = await pushSubscription();
+  if (sub) { try { await api.pushUnsubscribe(sub.endpoint); } catch {} await sub.unsubscribe(); }
+  S.pushOn = false;
+}
+/** On load: is this phone set up, and is it linked to whoever's signed in now? */
+async function pushCheck() {
+  try {
+    const sub = await pushSubscription();
+    S.pushOn = !!sub && Notification.permission === "granted";
+    if (S.pushOn && !DEMO) { const j = sub.toJSON(); await api.pushSubscribe(j.endpoint, j.keys.p256dh, j.keys.auth); }
+  } catch { S.pushOn = false; }
+}
+function pushCard() {
+  let asked = false;
+  try { asked = localStorage.getItem("rotaPushAsked") === "1"; } catch {}
+  if (!S.me || S.pushOn || asked || !pushSupported() || Notification.permission === "denied") return "";
+  return `<div class="card row" id="pushCard"><div style="flex:1;min-width:200px"><b>Get notifications?</b><div class="muted small">This phone can tell you when ${pushWhat()}.</div></div>
+    <button class="btn ghost" id="pushLater">Not now</button><button class="btn" id="pushYes">Turn on</button></div>`;
+}
+function wirePushCard() {
+  if (!$("pushCard")) return;
+  $("pushLater").onclick = () => { try { localStorage.setItem("rotaPushAsked", "1"); } catch {} $("pushCard").remove(); };
+  $("pushYes").onclick = async () => {
+    try { $("pushYes").disabled = true; await pushOn(); $("pushCard").remove(); await api.pushTest().catch(() => {}); }
+    catch (e) { $("pushYes").disabled = false; alert(e.message); }
+  };
+}
+function pushSection() {
+  let state, buttons = "";
+  if (!pushSupported()) state = /iPhone|iPad|iPod/.test(navigator.userAgent)
+    ? "On an iPhone: tap Share, then <b>Add to Home Screen</b>. Open the Rota from the new icon and turn notifications on here."
+    : "This browser can't do notifications. Try Chrome or Firefox.";
+  else if (Notification.permission === "denied") state = "Blocked for this page. Allow notifications in the browser's settings for this site, then come back here.";
+  else if (S.pushOn) { state = "<b>On</b> for this phone."; buttons = `<button class="btn ghost" id="pnTest">Send a test</button><button class="btn danger" id="pnOff">Turn off</button>`; }
+  else { state = `Off. Turn on to hear when ${pushWhat()}.`; buttons = `<button class="btn" id="pnOn">Turn on</button>`; }
+  return `<h3>Notifications</h3><p class="small" style="margin:0 0 8px">${state}</p><div class="row">${buttons}</div><div class="msg" id="pnMsg" hidden></div>`;
+}
+function wirePushSection() {
+  const say = (text, good) => { const m = $("pnMsg"); m.hidden = false; m.className = "msg " + (good ? "good" : "bad"); m.textContent = text; };
+  const redo = () => { $("pushBox").innerHTML = pushSection(); wirePushSection(); };
+  if ($("pnOn")) $("pnOn").onclick = async () => {
+    try { $("pnOn").disabled = true; await pushOn(); redo(); await api.pushTest(); say("Done. A test notification is on its way.", true); }
+    catch (e) { redo(); say(e.message); }
+  };
+  if ($("pnOff")) $("pnOff").onclick = async () => { await pushOff(); redo(); };
+  if ($("pnTest")) $("pnTest").onclick = async () => {
+    try { $("pnTest").disabled = true; await api.pushTest(); say("Sent. It should pop up in a few seconds.", true); }
+    catch (e) { say(e.message); } finally { if ($("pnTest")) $("pnTest").disabled = false; }
+  };
+}
+
+/** Opens what a notification points at: #holidays, #calendar or #week=YYYY-MM-DD. */
+function applyHash() {
+  const h = location.hash;
+  if (h === "#holidays" || h === "#calendar") S.tab = h.slice(1);
+  else if (/^#week=\d{4}-\d{2}-\d{2}$/.test(h)) { S.tab = "rota"; S.week = monday(h.slice(6)); }
+  else return false;
+  history.replaceState(null, "", location.pathname + location.search);
+  return true;
+}
+if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", async (e) => {
+  if (!e.data?.go || !S.me) return;
+  location.hash = new URL(e.data.go).hash;
+  if (applyHash()) { await reloadData(); render(); }
+});
+
 // ---- Account ---------------------------------------------------------------------------------------------------
 $("menuBtn").onclick = () => {
   openSheet(`<h2>${esc(S.me?.name ?? "Account")}</h2>
     <label>New password</label><input type="password" id="newPw" autocomplete="new-password" minlength="8" placeholder="At least 8 characters">
     <div class="msg" id="pwMsg" hidden></div>
-    <div class="row" style="margin-top:12px"><button class="btn danger" id="signOut">Sign out</button><span class="spacer"></span><button class="btn ghost" data-close>Close</button><button class="btn" id="pwSave">Change password</button></div>`);
-  $("signOut").onclick = async () => { await api.signOut(); location.reload(); };
+    <div id="pushBox">${pushSection()}</div>
+    <div class="row" style="margin-top:16px"><button class="btn danger" id="signOut">Sign out</button><span class="spacer"></span><button class="btn ghost" data-close>Close</button><button class="btn" id="pwSave">Change password</button></div>`);
+  wirePushSection();
+  $("signOut").onclick = async () => { await pushOff().catch(() => {}); await api.signOut(); location.reload(); };
   $("pwSave").onclick = async () => {
     const pw = $("newPw").value, m = $("pwMsg");
     m.hidden = false;
@@ -1280,12 +1388,14 @@ async function start() {
     const session = await api.session();
     if (!session) return showSignIn();
     await api.claim(); // links a first sign-in to its rota person by email
+    applyHash();
     await loadAll(session.user.id);
     if (!S.me) {
       $("app").innerHTML = `<div class="card login"><h2>Not on the rota yet</h2><p>You're signed in as ${esc(session.user.email)}, but that email isn't linked to anyone on the rota. Ask the manager to add it under People.</p><button class="btn ghost" id="out">Sign out</button></div>`;
       $("out").onclick = async () => { await api.signOut(); location.reload(); };
       return;
     }
+    await pushCheck();
     render();
   } catch (e) {
     $("app").innerHTML = `<div class="card"><h2>Couldn't load the rota</h2><p class="muted">${esc(e.message)}</p><button class="btn" onclick="location.reload()">Try again</button></div>`;
