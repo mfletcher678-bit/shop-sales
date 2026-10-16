@@ -153,8 +153,9 @@
 // Everything lives in the rota_* tables; who sees and changes what is enforced by the database.
 const SUPABASE_URL = "https://hgoknavmxkaoolozzwkc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_W7wlg7ZG_k_gYwbj1WcqCA_3JzDF_K3";
-// "admin" or "staff": made-up data for screenshots, only on a local preview (never on the published page).
-const DEMO = ["localhost", "127.0.0.1"].includes(location.hostname) ? new URLSearchParams(location.search).get("demo") : null;
+// ?demo=admin or ?demo=staff: made-up data to show people round. It never touches the database,
+// so nothing real is shown and nothing anyone does is saved.
+const DEMO = { admin: "admin", staff: "staff" }[new URLSearchParams(location.search).get("demo")] ?? null;
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -336,7 +337,7 @@ function demoApi(as) {
   const places = ["Pocklington", "Driffield", "Malton", "Scarborough", "Hull"].map((name, i) => ({ id: "pl" + i, name, needs_cover: true, sort: i, active: true }));
   const P = (name, employer, dpw, chosen, home, extra = {}) => ({ id: "pe_" + name.toLowerCase(), name, employer, user_id: null, is_admin: false, days_per_week: dpw, chosen_days: chosen, tracks_holiday: true, home_place_id: home == null ? null : "pl" + home, sort: 0, active: true, ...extra });
   const people = [
-    P("Owner", "Owner", 0, 0, null, { is_admin: true, tracks_holiday: false, user_id: "u-owner" }),
+    P("Mike F", "Owner", 0, 0, null, { id: "pe_owner", is_admin: true, tracks_holiday: false, user_id: "u-owner" }),
     P("Ross", "Fletchers Cobblers Ltd", 5, 15, 0, { user_id: "u-ross" }), P("Kyle", "Fletchers Cobblers Ltd", 5, 15, 1),
     P("Jamie", "Fletchers Cobblers Ltd", 5, 15, null), P("Ady", "Fletchers Cobblers Ltd", 2, 6, 1),
     P("Lewis", "Newland Shoe Repairs", 5, 15, 4), P("Mike", "Sole trader (Scarborough)", 2, 6, 3), P("Tony", "Sole trader (Scarborough)", 5, 15, 3),
