@@ -526,7 +526,15 @@
     }
   }
 
-  function startApp() {
+  async function startApp() {
+    // Rota logins (staff) aren't sales logins: turn them away rather than show an empty page.
+    const { data: member } = await db.from("members").select("role").limit(1);
+    if (!member?.length) {
+      await db.auth.signOut();
+      show("login");
+      $("loginError").textContent = "That login is for the rota, not the sales page.";
+      return;
+    }
     show("app");
     day = startOfDay(new Date());
     showShopName();
