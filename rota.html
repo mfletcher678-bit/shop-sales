@@ -236,7 +236,14 @@ function allowance(p, year) {
   const mine = S.leave.filter((l) => l.person_id === p.id && l.kind === "holiday" && l.first_day.startsWith(String(year)));
   const used = mine.filter((l) => l.status === "approved").reduce((s, l) => s + Number(l.days), 0);
   const waiting = mine.filter((l) => l.status === "requested").reduce((s, l) => s + Number(l.days), 0);
-  const base = Number(p.chosen_days);
+  // Someone who started part way through the year gets that share of it, rounded up to the half day
+  // (holiday can be rounded up, never down). The legal minimum and closures follow the same part year.
+  const yearStart = `${year}-01-01`, yearEnd = `${year}-12-31`;
+  const from = p.started_on && p.started_on > yearStart ? p.started_on : yearStart;
+  const daysIn = (a, b) => Math.round((parse(b) - parse(a)) / 864e5) + 1;
+  const share = from > yearEnd ? 0 : daysIn(from, yearEnd) / daysIn(yearStart, yearEnd);
+  const full = Number(p.chosen_days);
+  const base = share < 1 ? Math.ceil(full * share * 2) / 2 : full;
   // Extra days for this year only: carried over, earned by working extra, anything else agreed.
   const extras = S.extras.filter((e) => e.person_id === p.id && e.year === year && e.kind !== "overtime");
   const extra = extras.reduce((s, e) => s + Number(e.days), 0);
@@ -247,15 +254,15 @@ function allowance(p, year) {
   const dpw = Number(p.days_per_week);
   const perWeek = new Map();
   for (const c of S.closures) {
-    if (!c.day.startsWith(String(year)) || isSunday(c.day)) continue;
+    if (!c.day.startsWith(String(year)) || isSunday(c.day) || c.day < from) continue;
     perWeek.set(monday(c.day), (perWeek.get(monday(c.day)) || 0) + 1);
   }
   let fromClosures = 0;
   for (const n of perWeek.values()) fromClosures += Math.min(n, dpw);
   const given = base + fromClosures;
-  const minimum = Math.min(28, 5.6 * dpw);
+  const minimum = Math.min(28, 5.6 * dpw) * share;
   const christmasSet = S.closures.some((c) => c.kind === "closure" && c.day.startsWith(`${year}-12`));
-  return { chosen, base, extra, extras, used, waiting, left: chosen - used - waiting, given, minimum, short: given + 0.05 < minimum, christmasSet };
+  return { chosen, base, full, from: share < 1 ? from : null, extra, extras, used, waiting, left: chosen - used - waiting, given, minimum, short: given + 0.05 < minimum, christmasSet };
 }
 const leaveOn = (personId, d) => S.leave.filter((l) => l.person_id === personId && l.first_day <= d && l.last_day >= d && (l.status === "approved" || l.status === "requested"));
 
@@ -340,7 +347,7 @@ function demoApi(as) {
     P("Mike F", "Owner", 0, 0, null, { id: "pe_owner", is_admin: true, tracks_holiday: false, user_id: "u-owner" }),
     P("Ross", "Fletchers Cobblers Ltd", 5, 15, 0, { user_id: "u-ross" }), P("Kyle", "Fletchers Cobblers Ltd", 5, 15, 1),
     P("Jamie", "Fletchers Cobblers Ltd", 5, 15, null), P("Ady", "Fletchers Cobblers Ltd", 2, 6, 1),
-    P("Lewis", "Newland Shoe Repairs", 5, 15, 4), P("Mike", "Sole trader (Scarborough)", 2, 6, 3), P("Tony", "Sole trader (Scarborough)", 5, 15, 3),
+    P("Lewis", "Newland Shoe Repairs", 5, 15, 4), P("Mike", "Sole trader (Scarborough)", 2, 6, 3, { started_on: `${TODAY.slice(0, 4)}-05-15` }), P("Tony", "Sole trader (Scarborough)", 5, 15, 3),
   ];
   const wk = monday(TODAY), prev = addDays(wk, -7);
   const shifts = [];
@@ -852,7 +859,7 @@ function renderHolidays() {
     const a = allowance(S.me, y);
     html += `<div class="card"><h2>My holiday</h2>
       <div class="stats"><div><b>${num(a.left)}</b>left to book</div><div><b>${num(a.used)}</b>booked</div><div><b>${num(a.waiting)}</b>waiting</div></div>
-      <p class="muted small">You choose ${num(a.base)} days a year${a.extra ? `, plus ${a.extras.map((e) => `${num(e.days)} ${esc(e.reason.toLowerCase())}`).join(" and ")} this year` : ""}. Bank holidays and the Christmas closure are given on top.</p>
+      <p class="muted small">${a.from ? `You started on ${dayLabel(a.from)}, so this year you choose ${num(a.base)} of your ${num(a.full)} days` : `You choose ${num(a.base)} days a year`}${a.extra ? `, plus ${a.extras.map((e) => `${num(e.days)} ${esc(e.reason.toLowerCase())}`).join(" and ")} this year` : ""}. Bank holidays and the Christmas closure are given on top.</p>
       <button class="btn" id="askOff">Ask for time off</button></div>`;
     const mine = S.leave.filter((l) => l.person_id === S.me.id && !(l.kind === "rest" && l.status === "approved" && l.last_day < TODAY) && l.first_day.startsWith(String(y))).sort((a, b) => b.first_day.localeCompare(a.first_day));
     html += `<div class="card"><h2>My requests</h2>${mine.length ? `<ul class="list">${mine.map((l) => leaveItem(l, { own: true })).join("")}</ul>` : `<p class="muted">None this year.</p>`}</div>`;
@@ -880,7 +887,7 @@ function renderHolidays() {
 
     const rows = activePeople().filter((p) => p.tracks_holiday).map((p) => {
       const a = allowance(p, y);
-      return `<tr><td>${esc(p.name)}<br><span class="muted small">${esc(p.employer)}</span></td><td class="num">${a.extra ? `${num(a.base)} <span class="muted">+ ${num(a.extra)}</span>` : num(a.chosen)}</td><td class="num">${num(a.used)}</td><td class="num">${num(a.waiting)}</td><td class="num"><b>${num(a.left)}</b></td>
+      return `<tr><td>${esc(p.name)}<br><span class="muted small">${esc(p.employer)}${a.from ? ` · started ${fmt(a.from, { day: "numeric", month: "short" })}` : ""}</span></td><td class="num">${a.extra ? `${num(a.base)} <span class="muted">+ ${num(a.extra)}</span>` : num(a.chosen)}</td><td class="num">${num(a.used)}</td><td class="num">${num(a.waiting)}</td><td class="num"><b>${num(a.left)}</b></td>
         <td class="num ${a.short ? "" : "muted"}">${a.short ? `<span class="chip gap">${num(a.given)} of ${num(a.minimum)}</span>` : `${num(a.given)} ✓`}</td></tr>`;
     }).join("");
     const anyShort = activePeople().some((p) => p.tracks_holiday && allowance(p, y).short);
@@ -1197,6 +1204,7 @@ function personSheet(p) {
     <datalist id="employers">${[...new Set(S.people.map((x) => x.employer))].map((e) => `<option value="${esc(e)}">`).join("")}</datalist>
     <div class="grid2"><div><label>Days a week</label><input type="number" id="pDays" min="0" max="6" step="0.5" value="${num(p.days_per_week)}"></div>
       <div><label>Holiday days to choose</label><input type="number" id="pChosen" min="0" step="0.5" value="${num(p.chosen_days)}"></div></div>
+    <label>Started (for a part year's holiday)</label><input type="date" id="pStart" value="${p.started_on ?? ""}">
     <label>Usual shop</label><select id="pHome"><option value="">Moves around</option>${S.places.map((pl) => `<option value="${pl.id}" ${pl.id === p.home_place_id ? "selected" : ""}>${esc(pl.name)}</option>`).join("")}</select>
     <label>Login email</label><input id="pEmail" type="email" value="${esc(email)}" placeholder="Leave empty for no login">
     <label class="check"><input type="checkbox" id="pTrack" ${p.tracks_holiday ? "checked" : ""}> Track their holiday</label>
@@ -1209,7 +1217,7 @@ function personSheet(p) {
     const row = {
       ...(isNew ? {} : { id: p.id }),
       name: $("pName").value.trim(), employer: $("pEmployer").value.trim() || "Fletchers Cobblers Ltd",
-      days_per_week: Number($("pDays").value) || 0, chosen_days: Number($("pChosen").value) || 0,
+      days_per_week: Number($("pDays").value) || 0, chosen_days: Number($("pChosen").value) || 0, started_on: $("pStart").value || null,
       home_place_id: $("pHome").value || null, tracks_holiday: $("pTrack").checked, is_admin: $("pAdmin").checked,
       active: $("pActive").checked, sort: p.sort ?? 0,
     };
