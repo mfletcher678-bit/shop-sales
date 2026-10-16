@@ -72,8 +72,9 @@
   table.rota th, table.rota td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
   table.rota th { font-size: 13px; color: var(--muted); font-weight: 600; white-space: nowrap; }
   table.rota th.today { color: var(--accent); }
-  table.rota td.name, table.rota th.name { position: sticky; left: 0; background: var(--card); z-index: 1; font-weight: 600; min-width: 84px; }
-  table.rota td.name small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+  table.rota td.name, table.rota th.name { position: sticky; left: 0; background: var(--card); z-index: 1; font-weight: 600; width: 64px; min-width: 64px; max-width: 72px; padding: 6px 4px 6px 8px; font-size: 14px; overflow-wrap: anywhere; }
+  table.rota th.name { white-space: normal; font-size: 11px; font-weight: 400; line-height: 1.2; }
+  table.rota td.name small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; line-height: 1.2; }
   table.rota tr.me td.name { color: var(--accent); }
   table.rota td.cell { min-width: 86px; height: 48px; }
   table.rota td.cell.edit { cursor: pointer; }
@@ -493,7 +494,7 @@ function renderRota() {
 
   if (S.me && !admin) html += myWeekCard(days);
 
-  html += `<div class="scroll"><table class="rota"><thead><tr><th class="name">${admin ? "Tap a box to change it" : ""}</th>`;
+  html += `<div class="scroll"><table class="rota"><thead><tr><th class="name">${admin ? "Tap a box to change" : ""}</th>`;
   for (const d of days) html += `<th class="${d === TODAY ? "today" : ""}">${dayLabel(d)}</th>`;
   html += `</tr></thead><tbody>`;
   for (const p of people) {
@@ -602,7 +603,8 @@ async function copyLastWeek() {
 // ---- Calendar: days off and holidays, linked to the rota ------------------------------------------------
 const KIND = { rest: ["Day off", "rest"], holiday: ["Holiday", "hol"], sick: ["Sick", "sick"] };
 const addMonths = (m, n) => { const [y, mo] = m.split("-").map(Number); return iso(new Date(y, mo - 1 + n, 1)).slice(0, 7); };
-const firstName = (p) => (p?.name ?? "?").split(" ")[0];
+// Short names stay whole ("Mike F" next to "Mike"); longer ones use the first name.
+const firstName = (p) => { const n = p?.name ?? "?"; return n.length <= 7 ? n : n.split(" ")[0]; };
 const chipClass = (l) => (l.kind === "holiday" ? (l.status === "approved" ? "hol" : "req") : l.kind === "rest" ? (l.status === "approved" ? "rest" : "reqrest") : "sick");
 
 function renderCalendar() {
