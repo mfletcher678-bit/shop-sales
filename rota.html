@@ -302,6 +302,9 @@ function supaApi() {
       return data;
     },
     async shifts(from, to) { return must(await db.from("rota_shifts").select("*").gte("day", from).lte("day", to)); },
+    async weeks(from, to) { return must(await db.from("rota_weeks").select("*").gte("week", from).lte("week", to)); },
+    async weekChanges(week) { return must(await db.from("rota_week_changes").select("person_id").eq("week", week)).map((r) => r.person_id); },
+    async publishWeek(week) { return must(await db.rpc("rota_publish_week", { p_week: week })); },
     async setCell(personId, day, placeIds) {
       const del = db.from("rota_shifts").delete().eq("person_id", personId).eq("day", day);
       must(placeIds.length ? await del.not("place_id", "in", `(${placeIds.join(",")})`) : await del);
@@ -370,6 +373,7 @@ function demoApi(as) {
   }
   const closures = [];
   const store = { places, people, shifts, leave, closures, logins: [{ person_id: "pe_ross", email: "ross@example.com" }],
+    weeks: [prev, wk].map((week) => ({ week, published_at: new Date().toISOString() })),
     extras: [{ id: id(), person_id: "pe_kyle", year: Number(TODAY.slice(0, 4)), days: 4, kind: "carried_over", worked_on: null, reason: "Carried over" },
       { id: id(), person_id: "pe_jamie", year: Number(TODAY.slice(0, 4)), days: 1, kind: "overtime", worked_on: addDays(monday(TODAY), -2), reason: "Overtime (covered Hull)" }] };
   const me = as === "staff" ? people[1] : people[0];
@@ -388,7 +392,10 @@ function demoApi(as) {
     },
     async addExtra(row) { store.extras.push({ id: id(), ...row }); },
     async deleteExtra(eid) { store.extras.splice(store.extras.findIndex((e) => e.id === eid), 1); },
-    async shifts(from, to) { return shifts.filter((s) => s.day >= from && s.day <= to); },
+    async shifts(from, to) { return shifts.filter((s) => s.day >= from && s.day <= to && (me.is_admin || store.weeks.some((w) => w.week === monday(s.day) && w.published_at))); },
+    async weeks(from, to) { return store.weeks.filter((w) => w.week >= from && w.week <= to); },
+    async weekChanges() { return []; },
+    async publishWeek(week) { store.weeks = store.weeks.filter((w) => w.week !== week).concat({ week, published_at: new Date().toISOString() }); return 0; },
     async setCell(personId, day, placeIds) {
       for (let i = shifts.length - 1; i >= 0; i--) if (shifts[i].person_id === personId && shifts[i].day === day) shifts.splice(i, 1);
       placeIds.forEach((place_id) => shifts.push({ id: id(), person_id: personId, day, place_id }));
@@ -432,6 +439,8 @@ async function loadAll(userId) {
 async function loadWeek() {
   // This week and the one before, so "copy last week" has what it needs.
   S.shifts = await api.shifts(addDays(S.week, -7), addDays(S.week, 6));
+  S.weeksInfo = await api.weeks(addDays(S.week, -7), S.week);
+  S.changes = isAdmin() ? await api.weekChanges(S.week) : [];
 }
 
 // ---- Screens ------------------------------------------------------------------------------------------
@@ -500,6 +509,22 @@ function renderRota() {
       <button id="nextWeek" aria-label="Next week">›</button>
     </div>`;
 
+  // A week is a draft until it's sent: staff can't see its shifts and nobody is notified.
+  const wkInfo = (S.weeksInfo || []).find((w) => w.week === S.week);
+  const sent = !!wkInfo?.published_at;
+  const changed = (S.changes || []).map((pid) => firstName(person(pid))).filter((n) => n !== "?");
+  if (admin) {
+    const anyShifts = S.shifts.some((x) => x.day >= S.week && x.day <= end);
+    html += `<div class="card row" style="padding:12px 16px">${!sent
+      ? `<div style="flex:1;min-width:190px"><b>Draft</b><div class="muted small">Staff can't see this week's shifts until you send it.</div></div><button class="btn" id="sendWeek" ${anyShifts ? "" : "disabled"}>Send rota to staff</button>`
+      : changed.length
+        ? `<div style="flex:1;min-width:190px"><b>Changes not sent yet</b><div class="muted small">${esc(changed.join(", "))}</div></div><button class="btn" id="sendWeek">Send changes</button>`
+        : `<div style="flex:1;min-width:190px" class="muted small">Sent to staff on ${fmt(iso(new Date(wkInfo.published_at)), { weekday: "short", day: "numeric", month: "short" })}.</div>`}
+      <button class="btn ghost" id="waCopy">Copy for WhatsApp</button></div>`;
+  } else if (S.me && !sent) {
+    html += `<div class="msg warn">The rota for this week hasn't been sent out yet.</div>`;
+  }
+
   if (S.me && !admin) html += myWeekCard(days);
 
   html += `<div class="scroll"><table class="rota"><thead><tr><th class="name">${admin ? "Tap a box to change" : ""}</th>`;
@@ -529,6 +554,17 @@ function renderRota() {
   $("app").innerHTML = html;
 
   $("prevWeek").onclick = async () => { S.week = addDays(S.week, -7); await loadWeek(); render(); };
+  if ($("sendWeek")) $("sendWeek").onclick = async () => {
+    const label = fmt(S.week, { weekday: "short", day: "numeric", month: "short" });
+    if (!confirm(sent ? `Send the changes? ${changed.join(", ")} will get a notification.` : `Send the rota for the week starting ${label}? Everyone can see it and gets a notification.`)) return;
+    try {
+      $("sendWeek").disabled = true;
+      const n = await api.publishWeek(S.week);
+      await loadWeek(); render();
+      alert(`Sent. ${n} ${n === 1 ? "phone" : "phones"} notified${n ? "" : " (nobody affected has notifications on)"}.`);
+    } catch (e) { alert("Couldn't send: " + e.message); render(); }
+  };
+  if ($("waCopy")) $("waCopy").onclick = whatsappSheet;
   $("weekPick").onclick = (e) => { try { e.target.showPicker(); } catch {} };
   $("weekPick").onchange = (e) => { if (e.target.value) goToWeek(e.target.value); };
   $("nextWeek").onclick = async () => { S.week = addDays(S.week, 7); await loadWeek(); render(); };
@@ -537,6 +573,40 @@ function renderRota() {
     $("app").querySelectorAll("td.cell.edit").forEach((td) => (td.onclick = () => editCell(person(td.dataset.p), td.dataset.d)));
     $("copyWeek").onclick = copyLastWeek;
   }
+}
+
+/** The week as a WhatsApp message: each day's shops, then days off and holidays. You show as "Me". */
+function whatsappText() {
+  const nm = (p) => (S.me && p.id === S.me.id ? "Me" : p.name);
+  const out = [`*Rota – week starting ${fmt(S.week, { weekday: "short", day: "numeric", month: "short" })}*`];
+  for (let i = 0; i < 6; i++) {
+    const d = addDays(S.week, i);
+    out.push("", `*${fmt(d, { weekday: "short", day: "numeric" })}*`);
+    const c = closureOn(d);
+    if (c) { out.push(`Closed – ${c.name}`); continue; }
+    S.shifts.filter((x) => x.day === d).map((x) => ({ p: person(x.person_id), pl: place(x.place_id) })).filter((x) => x.p && x.pl)
+      .sort((a, b) => (S.places.indexOf(a.pl) - S.places.indexOf(b.pl)) || ((a.p.sort ?? 0) - (b.p.sort ?? 0)))
+      .forEach((x) => out.push(`${nm(x.p)} – ${x.pl.name}`));
+    const off = S.leave.filter((l) => l.status === "approved" && l.first_day <= d && l.last_day >= d && person(l.person_id)?.active);
+    const rest = off.filter((l) => l.kind === "rest").map((l) => nm(person(l.person_id)));
+    const hol = off.filter((l) => l.kind === "holiday").map((l) => `${nm(person(l.person_id))} on holiday`);
+    const line = [rest.length ? `Day off: ${rest.join(", ")}` : "", hol.join(", ")].filter(Boolean).join(" · ");
+    if (line) out.push(line);
+  }
+  out.push("", "Any changes, ask in the Rota app 👍");
+  return out.join("\n");
+}
+function whatsappSheet() {
+  const text = whatsappText();
+  openSheet(`<h2>Copy for WhatsApp</h2>
+    <textarea id="waText" rows="16" style="font-size:14px;line-height:1.35">${esc(text)}</textarea>
+    <div class="row" style="margin-top:12px">${navigator.share ? `<button class="btn ghost" id="waShare">Share…</button>` : ""}<span class="spacer"></span><button class="btn ghost" data-close>Close</button><button class="btn" id="waGo">Copy</button></div>`);
+  $("waGo").onclick = async () => {
+    try { await navigator.clipboard.writeText($("waText").value); }
+    catch { $("waText").select(); document.execCommand("copy"); }
+    $("waGo").textContent = "Copied ✓";
+  };
+  if ($("waShare")) $("waShare").onclick = () => navigator.share({ text: $("waText").value }).catch(() => {});
 }
 
 function myWeekCard(days) {
