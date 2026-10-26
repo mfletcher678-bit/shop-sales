@@ -179,7 +179,11 @@ const S = {
 const isAdmin = () => !!S.me?.is_admin;
 const person = (id) => S.people.find((p) => p.id === id);
 const place = (id) => S.places.find((p) => p.id === id);
-const activePeople = () => S.people.filter((p) => p.active);
+/** Works here on day `d`: still on the books, and not past their last day (left_on) if they're leaving. */
+const employedOn = (p, d = TODAY) => !!p && p.active && !(p.left_on && p.left_on < d);
+const activePeople = (d = TODAY) => S.people.filter((p) => employedOn(p, d));
+/** Still here at some point in `year` (leavers stay on that year's holiday list to show what's owed). */
+const hereInYear = (p, year) => p.active && !(p.left_on && p.left_on < `${year}-01-01`);
 const closureOn = (d) => S.closures.find((c) => c.day === d);
 const placeClass = (pl) => "p" + (Math.max(0, S.places.indexOf(pl)) % 6);
 const shortName = (name) => (name.length > 6 ? name.slice(0, 5) + "." : name);
@@ -236,12 +240,13 @@ function allowance(p, year) {
   const mine = S.leave.filter((l) => l.person_id === p.id && l.kind === "holiday" && l.first_day.startsWith(String(year)));
   const used = mine.filter((l) => l.status === "approved").reduce((s, l) => s + Number(l.days), 0);
   const waiting = mine.filter((l) => l.status === "requested").reduce((s, l) => s + Number(l.days), 0);
-  // Someone who started part way through the year gets that share of it, rounded up to the half day
-  // (holiday can be rounded up, never down). The legal minimum and closures follow the same part year.
+  // Someone who started or left part way through the year gets that share of it, rounded up to the half
+  // day (holiday can be rounded up, never down). The legal minimum and closures follow the same part year.
   const yearStart = `${year}-01-01`, yearEnd = `${year}-12-31`;
   const from = p.started_on && p.started_on > yearStart ? p.started_on : yearStart;
+  const to = p.left_on && p.left_on < yearEnd ? p.left_on : yearEnd;
   const daysIn = (a, b) => Math.round((parse(b) - parse(a)) / 864e5) + 1;
-  const share = from > yearEnd ? 0 : daysIn(from, yearEnd) / daysIn(yearStart, yearEnd);
+  const share = from > to ? 0 : daysIn(from, to) / daysIn(yearStart, yearEnd);
   const full = Number(p.chosen_days);
   const base = share < 1 ? Math.ceil(full * share * 2) / 2 : full;
   // Extra days for this year only: carried over, earned by working extra, anything else agreed.
@@ -254,7 +259,7 @@ function allowance(p, year) {
   const dpw = Number(p.days_per_week);
   const perWeek = new Map();
   for (const c of S.closures) {
-    if (!c.day.startsWith(String(year)) || isSunday(c.day) || c.day < from) continue;
+    if (!c.day.startsWith(String(year)) || isSunday(c.day) || c.day < from || c.day > to) continue;
     perWeek.set(monday(c.day), (perWeek.get(monday(c.day)) || 0) + 1);
   }
   let fromClosures = 0;
@@ -262,7 +267,9 @@ function allowance(p, year) {
   const given = base + fromClosures;
   const minimum = Math.min(28, 5.6 * dpw) * share;
   const christmasSet = S.closures.some((c) => c.kind === "closure" && c.day.startsWith(`${year}-12`));
-  return { chosen, base, full, from: share < 1 ? from : null, extra, extras, used, waiting, left: chosen - used - waiting, given, minimum, short: given + 0.05 < minimum, christmasSet };
+  // Leavers aren't checked against the legal minimum here: payroll settles their holiday in the final pay.
+  const leaving = to < yearEnd ? to : null;
+  return { chosen, base, full, from: from > yearStart ? from : null, leaving, extra, extras, used, waiting, left: chosen - used - waiting, given, minimum, short: !leaving && given + 0.05 < minimum, christmasSet };
 }
 const leaveOn = (personId, d) => S.leave.filter((l) => l.person_id === personId && l.first_day <= d && l.last_day >= d && (l.status === "approved" || l.status === "requested"));
 
@@ -349,7 +356,7 @@ function demoApi(as) {
   const people = [
     P("Mike F", "Owner", 0, 0, null, { id: "pe_owner", is_admin: true, tracks_holiday: false, user_id: "u-owner" }),
     P("Ross", "Fletchers Cobblers Ltd", 5, 15, 0, { user_id: "u-ross" }), P("Kyle", "Fletchers Cobblers Ltd", 5, 15, 1),
-    P("Jamie", "Fletchers Cobblers Ltd", 5, 15, null), P("Ady", "Fletchers Cobblers Ltd", 2, 6, 1),
+    P("Jamie", "Fletchers Cobblers Ltd", 5, 15, null, { left_on: addDays(monday(TODAY), 4) }), P("Ady", "Fletchers Cobblers Ltd", 2, 6, 1),
     P("Lewis", "Newland Shoe Repairs", 5, 15, 4), P("Mike", "Sole trader (Scarborough)", 2, 6, 3, { started_on: `${TODAY.slice(0, 4)}-05-15` }), P("Tony", "Sole trader (Scarborough)", 5, 15, 3),
   ];
   const wk = monday(TODAY), prev = addDays(wk, -7);
@@ -385,7 +392,7 @@ function demoApi(as) {
     async load() {
       await later();
       if (me.is_admin) return { places, people, closures: store.closures, leave, me, logins: store.logins, extras: store.extras };
-      const team = people.map((p) => (p === me ? p : { id: p.id, name: p.name, days_per_week: p.days_per_week, home_place_id: p.home_place_id, is_admin: p.is_admin, active: p.active, sort: p.sort, tracks_holiday: p.tracks_holiday }));
+      const team = people.map((p) => (p === me ? p : { id: p.id, name: p.name, days_per_week: p.days_per_week, home_place_id: p.home_place_id, is_admin: p.is_admin, active: p.active, sort: p.sort, tracks_holiday: p.tracks_holiday, left_on: p.left_on ?? null }));
       const seen = leave.filter((l) => l.person_id === me.id).concat(leave.filter((l) => l.person_id !== me.id && ["holiday", "rest"].includes(l.kind) && l.status === "approved")
         .map((l) => ({ id: l.id, person_id: l.person_id, first_day: l.first_day, last_day: l.last_day, kind: l.kind, status: l.status })));
       return { places, people: team, closures: store.closures, leave: seen, me, logins: [], extras: store.extras.filter((e) => e.person_id === me.id) };
@@ -486,7 +493,7 @@ function weekWarnings(days) {
     for (const pl of S.places.filter((x) => x.active && x.needs_cover)) {
       if (!S.shifts.some((s) => s.day === d && s.place_id === pl.id)) list.push(`<span class="chip gap">No one in ${esc(shortName(pl.name))}</span>`);
     }
-    for (const p of activePeople()) {
+    for (const p of activePeople(d)) {
       const off = leaveOn(p.id, d).some((l) => l.status === "approved");
       if (off && S.shifts.some((s) => s.person_id === p.id && s.day === d)) list.push(`<span class="chip clash">${esc(p.name)} is off</span>`);
     }
@@ -498,7 +505,7 @@ function weekWarnings(days) {
 function renderRota() {
   const days = [0, 1, 2, 3, 4, 5].map((i) => addDays(S.week, i));
   const end = days[5];
-  const people = activePeople();
+  const people = activePeople(S.week); // anyone leaving this week still shows, up to their last day
   const warn = weekWarnings(days);
   const admin = isAdmin();
   let html = `
@@ -538,6 +545,7 @@ function renderRota() {
     for (const d of days) {
       const c = closureOn(d);
       if (c) { html += `<td class="cell closed">${esc(c.name)}</td>`; continue; }
+      if (!employedOn(p, d)) { html += `<td class="cell closed">Left</td>`; continue; }
       html += `<td class="cell ${admin ? "edit" : ""}" data-p="${p.id}" data-d="${d}">${chipsFor(p, d)}</td>`;
     }
     html += `</tr>`;
@@ -587,7 +595,7 @@ function whatsappText() {
     S.shifts.filter((x) => x.day === d).map((x) => ({ p: person(x.person_id), pl: place(x.place_id) })).filter((x) => x.p && x.pl)
       .sort((a, b) => (S.places.indexOf(a.pl) - S.places.indexOf(b.pl)) || ((a.p.sort ?? 0) - (b.p.sort ?? 0)))
       .forEach((x) => out.push(`${nm(x.p)} – ${x.pl.name}`));
-    const off = S.leave.filter((l) => l.status === "approved" && l.first_day <= d && l.last_day >= d && person(l.person_id)?.active);
+    const off = S.leave.filter((l) => l.status === "approved" && l.first_day <= d && l.last_day >= d && employedOn(person(l.person_id), d));
     const rest = off.filter((l) => l.kind === "rest").map((l) => nm(person(l.person_id)));
     const hol = off.filter((l) => l.kind === "holiday").map((l) => `${nm(person(l.person_id))} on holiday`);
     const line = [rest.length ? `Day off: ${rest.join(", ")}` : "", hol.join(", ")].filter(Boolean).join(" · ");
@@ -651,7 +659,7 @@ async function copyLastWeek() {
   for (const l of S.leave.filter((l) => l.kind === "rest" && l.status === "approved" && l.last_day >= prev && l.first_day < S.week)) {
     for (let d = l.first_day < prev ? prev : l.first_day; d <= l.last_day && d < S.week; d = addDays(d, 1)) {
       const day = addDays(d, 7);
-      if (!person(l.person_id)?.active || !openDay(day) || leaveOn(l.person_id, day).length) continue;
+      if (!employedOn(person(l.person_id), day) || !openDay(day) || leaveOn(l.person_id, day).length) continue;
       if (S.shifts.some((x) => x.person_id === l.person_id && x.day === day)) continue;
       rests.push({ person_id: l.person_id, day });
     }
@@ -659,7 +667,7 @@ async function copyLastWeek() {
   for (const s of S.shifts.filter((s) => s.day >= prev && s.day < S.week)) {
     const day = addDays(s.day, 7);
     const p = person(s.person_id);
-    if (!p?.active || closureOn(day)) continue;
+    if (!employedOn(p, day) || closureOn(day)) continue;
     if (rests.some((r) => r.person_id === s.person_id && r.day === day)) continue;
     if (S.shifts.some((x) => x.person_id === s.person_id && x.day === day)) continue; // keep what's already there
     if (leaveOn(s.person_id, day).some((l) => l.status === "approved")) continue;
@@ -730,7 +738,7 @@ function renderCalendar() {
       let inner = `<div class="n">${Number(d.slice(8))}</div>`;
       if (c) inner += `<div class="cl">${esc(c.name)}</div>`;
       else {
-        const off = S.leave.filter((l) => counts(l) && l.first_day <= d && l.last_day >= d && person(l.person_id)?.active)
+        const off = S.leave.filter((l) => counts(l) && l.first_day <= d && l.last_day >= d && employedOn(person(l.person_id), d))
           .sort((a, b) => (person(a.person_id).sort - person(b.person_id).sort) || person(a.person_id).name.localeCompare(person(b.person_id).name));
         inner += off.map((l) => `<span class="chip ${chipClass(l)} ${bp && l.person_id !== bp.id ? "dim" : ""}" title="${esc(person(l.person_id).name)}: ${KIND[l.kind]?.[0] ?? "Off"}">${esc(firstName(person(l.person_id)))}</span>`).join("");
       }
@@ -771,7 +779,7 @@ function renderCalendar() {
 /** Who's off on one day, with the manager's buttons to clear a day or book someone. */
 function daySheet(d) {
   const admin = isAdmin();
-  const off = S.leave.filter((l) => counts(l) && l.first_day <= d && l.last_day >= d && person(l.person_id)?.active);
+  const off = S.leave.filter((l) => counts(l) && l.first_day <= d && l.last_day >= d && employedOn(person(l.person_id), d));
   const items = off.map((l) => `<li class="row"><b>${esc(person(l.person_id).name)}</b><span class="chip ${chipClass(l)}">${l.status === "requested" ? "Holiday asked for" : KIND[l.kind]?.[0] ?? "Off"}</span>
     ${l.first_day !== l.last_day ? `<span class="muted small">${dayLabel(l.first_day)} – ${dayLabel(l.last_day)}</span>` : ""}<span class="spacer"></span>
     ${admin && l.status === "approved" ? `<button class="btn danger" data-clear="${l.person_id}">Clear this day</button>` : ""}</li>`).join("");
@@ -955,12 +963,14 @@ function renderHolidays() {
         return `<div class="small" style="margin-top:8px"><b>${fmt(m + "-01", { month: "long" })}</b> <span class="muted">· ${byPerson}</span></div><ul class="list">${list.map(extraItem).join("")}</ul>`;
       }).join("") : `<p class="muted small">Extra days paid as overtime show here month by month, ready for wages.</p>`}</div>`;
 
-    const rows = activePeople().filter((p) => p.tracks_holiday).map((p) => {
+    const listed = S.people.filter((p) => p.tracks_holiday && hereInYear(p, y));
+    const rows = listed.map((p) => {
       const a = allowance(p, y);
-      return `<tr><td>${esc(p.name)}<br><span class="muted small">${esc(p.employer)}${a.from ? ` · started ${fmt(a.from, { day: "numeric", month: "short" })}` : ""}</span></td><td class="num">${a.extra ? `${num(a.base)} <span class="muted">+ ${num(a.extra)}</span>` : num(a.chosen)}</td><td class="num">${num(a.used)}</td><td class="num">${num(a.waiting)}</td><td class="num"><b>${num(a.left)}</b></td>
-        <td class="num ${a.short ? "" : "muted"}">${a.short ? `<span class="chip gap">${num(a.given)} of ${num(a.minimum)}</span>` : `${num(a.given)} ✓`}</td></tr>`;
+      const legal = a.leaving ? "–" : a.short ? `<span class="chip gap">${num(a.given)} of ${num(a.minimum)}</span>` : `${num(a.given)} ✓`;
+      return `<tr><td>${esc(p.name)}<br><span class="muted small">${esc(p.employer)}${a.from ? ` · started ${fmt(a.from, { day: "numeric", month: "short" })}` : ""}${a.leaving ? ` · last day ${fmt(a.leaving, { day: "numeric", month: "short" })}` : ""}</span></td><td class="num">${a.extra ? `${num(a.base)} <span class="muted">+ ${num(a.extra)}</span>` : num(a.chosen)}</td><td class="num">${num(a.used)}</td><td class="num">${num(a.waiting)}</td><td class="num"><b>${num(a.left)}</b></td>
+        <td class="num ${a.short ? "" : "muted"}">${legal}</td></tr>`;
     }).join("");
-    const anyShort = activePeople().some((p) => p.tracks_holiday && allowance(p, y).short);
+    const anyShort = listed.some((p) => allowance(p, y).short);
     const christmasSet = S.closures.some((c) => c.kind === "closure" && c.day.startsWith(`${y}-12`));
     html += `<div class="card"><h2>Everyone's holiday</h2><div class="scroll" style="background:none"><table class="simple"><thead><tr><th>Name</th><th class="num">Choose</th><th class="num">Booked</th><th class="num">Waiting</th><th class="num">Left</th><th class="num">Legal min.</th></tr></thead><tbody>${rows}</tbody></table></div>
       <p class="muted small">"Legal min." adds chosen days to bank holidays and closures and checks it against the legal 5.6 weeks. A bank holiday takes a day off everyone's week: 5 days go to 4, 2 days go to 1.</p>
@@ -1202,7 +1212,7 @@ function renderPeople() {
   const y = S.year;
   const loginOf = (p) => S.logins.find((l) => l.person_id === p.id)?.email;
   let html = `<div class="card"><div class="row"><h2 style="margin:0">People</h2><span class="spacer"></span><button class="btn ghost" id="addPerson">Add someone</button></div>
-    <ul class="list">${S.people.map((p) => `<li class="row" data-person="${p.id}" style="cursor:pointer"><div><b>${esc(p.name)}</b>${p.is_admin ? ` <span class="chip p0">Manager</span>` : ""}${p.active ? "" : ` <span class="muted small">(left)</span>`}
+    <ul class="list">${S.people.map((p) => `<li class="row" data-person="${p.id}" style="cursor:pointer"><div><b>${esc(p.name)}</b>${p.is_admin ? ` <span class="chip p0">Manager</span>` : ""}${!p.active || (p.left_on && p.left_on < TODAY) ? ` <span class="muted small">(left)</span>` : p.left_on ? ` <span class="muted small">(last day ${fmt(p.left_on, { day: "numeric", month: "short" })})</span>` : ""}
       <div class="muted small">${esc(p.employer)} · ${num(p.days_per_week)} days a week${p.tracks_holiday ? ` · ${num(p.chosen_days)} days to choose` : " · holiday not tracked"}${p.home_place_id ? ` · ${esc(place(p.home_place_id)?.name)}` : ""}</div>
       <div class="small">${p.user_id ? `<span style="color:var(--ok)">Signed in ✓</span>` : loginOf(p) ? `<span class="muted">Login: ${esc(loginOf(p))} (not signed in yet)</span>` : `<span class="muted">No login yet</span>`}</div></div><span class="spacer"></span><span class="muted">›</span></li>`).join("")}</ul></div>`;
 
@@ -1275,6 +1285,7 @@ function personSheet(p) {
     <div class="grid2"><div><label>Days a week</label><input type="number" id="pDays" min="0" max="6" step="0.5" value="${num(p.days_per_week)}"></div>
       <div><label>Holiday days to choose</label><input type="number" id="pChosen" min="0" step="0.5" value="${num(p.chosen_days)}"></div></div>
     <label>Started (for a part year's holiday)</label><input type="date" id="pStart" value="${p.started_on ?? ""}">
+    <label>Last day at work (if they're leaving)</label><input type="date" id="pLeft" value="${p.left_on ?? ""}">
     <label>Usual shop</label><select id="pHome"><option value="">Moves around</option>${S.places.map((pl) => `<option value="${pl.id}" ${pl.id === p.home_place_id ? "selected" : ""}>${esc(pl.name)}</option>`).join("")}</select>
     <label>Login email</label><input id="pEmail" type="email" value="${esc(email)}" placeholder="Leave empty for no login">
     <label class="check"><input type="checkbox" id="pTrack" ${p.tracks_holiday ? "checked" : ""}> Track their holiday</label>
@@ -1287,7 +1298,7 @@ function personSheet(p) {
     const row = {
       ...(isNew ? {} : { id: p.id }),
       name: $("pName").value.trim(), employer: $("pEmployer").value.trim() || "Fletchers Cobblers Ltd",
-      days_per_week: Number($("pDays").value) || 0, chosen_days: Number($("pChosen").value) || 0, started_on: $("pStart").value || null,
+      days_per_week: Number($("pDays").value) || 0, chosen_days: Number($("pChosen").value) || 0, started_on: $("pStart").value || null, left_on: $("pLeft").value || null,
       home_place_id: $("pHome").value || null, tracks_holiday: $("pTrack").checked, is_admin: $("pAdmin").checked,
       active: $("pActive").checked, sort: p.sort ?? 0,
     };
