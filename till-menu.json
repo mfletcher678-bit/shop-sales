@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-28T17:45:09+00:00",
+ "generated": "2026-10-31T13:36:51+00:00",
  "departments": [
   {
    "group": "Shoe Repair",
@@ -14,7 +14,7 @@
          "item": "Small stiletto type",
          "name": "Small stiletto type",
          "label": "Small stiletto type (Ladies heels)",
-         "price": 995,
+         "price": 1000,
          "extras": [
           {
            "name": "Heel build-up",
@@ -32,7 +32,7 @@
          "item": "Medium stapled",
          "name": "Medium stapled",
          "label": "Medium stapled (Ladies heels)",
-         "price": 1095,
+         "price": 1100,
          "extras": [
           {
            "name": "Heel build-up",
@@ -50,7 +50,7 @@
          "item": "Large stapled",
          "name": "Large stapled",
          "label": "Large stapled (Ladies heels)",
-         "price": 1195,
+         "price": 1200,
          "extras": [
           {
            "name": "Heel build-up",
@@ -73,7 +73,7 @@
          "item": "Toe piece",
          "name": "Toe piece",
          "label": "Toe piece (Ladies)",
-         "price": 1195,
+         "price": 1200,
          "extras": [
           {
            "name": "Toe build-up",
@@ -85,7 +85,7 @@
           {
            "name": "Toe piece",
            "label": "Toe piece (Ladies)",
-           "price": 1195,
+           "price": 1200,
            "extras": [
             {
              "name": "Toe build-up",
@@ -97,7 +97,7 @@
           {
            "name": "Toe piece with heels",
            "label": "Toe piece with heels (Ladies)",
-           "price": 1595,
+           "price": 1600,
            "extras": [
             {
              "name": "Toe build-up",
@@ -122,7 +122,7 @@
          "item": "Stick-a-sole",
          "name": "Stick-a-sole",
          "label": "Stick-a-sole (Ladies)",
-         "price": 1595,
+         "price": 1600,
          "extras": [
           {
            "name": "Toe build-up",
@@ -134,7 +134,7 @@
           {
            "name": "Stick-a-sole",
            "label": "Stick-a-sole (Ladies)",
-           "price": 1595,
+           "price": 1600,
            "extras": [
             {
              "name": "Toe build-up",
@@ -146,7 +146,7 @@
           {
            "name": "Stick-a-sole with heels",
            "label": "Stick-a-sole with heels (Ladies)",
-           "price": 1995,
+           "price": 2000,
            "extras": [
             {
              "name": "Toe build-up",
@@ -171,7 +171,7 @@
          "item": "Grip or resin sole",
          "name": "Grip or resin sole",
          "label": "Grip or resin sole (Ladies)",
-         "price": 1795,
+         "price": 1800,
          "extras": [
           {
            "name": "Toe build-up",
@@ -183,7 +183,7 @@
           {
            "name": "Grip or resin sole",
            "label": "Grip or resin sole (Ladies)",
-           "price": 1795,
+           "price": 1800,
            "extras": [
             {
              "name": "Toe build-up",
@@ -195,7 +195,7 @@
           {
            "name": "Grip or resin sole with heels",
            "label": "Grip or resin sole with heels (Ladies)",
-           "price": 2295,
+           "price": 2300,
            "extras": [
             {
              "name": "Toe build-up",
@@ -220,7 +220,7 @@
          "item": "Commando style sole",
          "name": "Commando style sole",
          "label": "Commando style sole (Ladies)",
-         "price": 1895,
+         "price": 1900,
          "extras": [
           {
            "name": "Toe build-up",
@@ -232,7 +232,7 @@
           {
            "name": "Commando style sole",
            "label": "Commando style sole (Ladies)",
-           "price": 1895,
+           "price": 1900,
            "extras": [
             {
              "name": "Toe build-up",
@@ -244,7 +244,7 @@
           {
            "name": "Commando style sole with heels",
            "label": "Commando style sole with heels (Ladies)",
-           "price": 2495,
+           "price": 2500,
            "extras": [
             {
              "name": "Toe build-up",
@@ -386,7 +386,7 @@
          "item": "Boot zip, up to 5\"",
          "name": "Boot zip, up to 5\"",
          "label": "Boot zip, up to 5\"",
-         "price": 1495,
+         "price": 1500,
          "extras": [
           {
            "name": "Each inch after",
@@ -515,7 +515,7 @@
          "item": "Standard",
          "name": "Standard",
          "label": "Standard (Gents heels)",
-         "price": 1595,
+         "price": 1600,
          "extras": [
           {
            "name": "Heel build-up",
@@ -528,7 +528,7 @@
          "item": "Hard wearing",
          "name": "Hard wearing",
          "label": "Hard wearing (Gents heels)",
-         "price": 1995,
+         "price": 2000,
          "extras": [
           {
            "name": "Heel build-up",
@@ -541,7 +541,7 @@
          "item": "¼ STL or leather",
          "name": "¼ STL or leather",
          "label": "¼ STL or leather (Gents heels)",
-         "price": 2195,
+         "price": 2200,
          "extras": [
           {
            "name": "Heel build-up",
@@ -559,7 +559,7 @@
          "item": "Toe piece",
          "name": "Toe piece",
          "label": "Toe piece (Gents)",
-         "price": 1595,
+         "price": 1600,
          "extras": [
           {
            "name": "Toe build-up",
@@ -571,7 +571,7 @@
           {
            "name": "Toe piece",
            "label": "Toe piece (Gents)",
-           "price": 1595,
+           "price": 1600,
            "extras": [
             {
              "name": "Toe build-up",
@@ -583,7 +583,7 @@
           {
            "name": "Toe piece with heels",
            "label": "Toe piece with heels (Gents)",
-           "price": 2295,
+           "price": 2300,
            "extras": [
             {
              "name": "Toe build-up",
@@ -603,7 +603,7 @@
          "item": "Stick-a-sole",
          "name": "Stick-a-sole",
          "label": "Stick-a-sole (Gents)",
-         "price": 1995,
+         "price": 2000,
          "extras": [
           {
            "name": "Toe build-up",
@@ -615,7 +615,7 @@
           {
            "name": "Stick-a-sole",
            "label": "Stick-a-sole (Gents)",
-           "price": 1995,
+           "price": 2000,
            "extras": [
             {
              "name": "Toe build-up",
@@ -627,7 +627,7 @@
           {
            "name": "Stick-a-sole with heels",
            "label": "Stick-a-sole with heels (Gents)",
-           "price": 2695,
+           "price": 2700,
            "extras": [
             {
              "name": "Toe build-up",
@@ -647,7 +647,7 @@
          "item": "Grip or resin sole",
          "name": "Grip or resin sole",
          "label": "Grip or resin sole (Gents)",
-         "price": 2195,
+         "price": 2200,
          "extras": [
           {
            "name": "Toe build-up",
@@ -664,7 +664,7 @@
           {
            "name": "Grip or resin sole",
            "label": "Grip or resin sole (Gents)",
-           "price": 2195,
+           "price": 2200,
            "extras": [
             {
              "name": "Toe build-up",
@@ -681,7 +681,7 @@
           {
            "name": "Grip or resin sole with heels",
            "label": "Grip or resin sole with heels (Gents)",
-           "price": 2995,
+           "price": 3000,
            "extras": [
             {
              "name": "Toe build-up",
@@ -706,7 +706,7 @@
          "item": "Commando style sole",
          "name": "Commando style sole",
          "label": "Commando style sole (Gents)",
-         "price": 2595,
+         "price": 2600,
          "extras": [
           {
            "name": "Toe build-up",
@@ -718,7 +718,7 @@
           {
            "name": "Commando style sole",
            "label": "Commando style sole (Gents)",
-           "price": 2595,
+           "price": 2600,
            "extras": [
             {
              "name": "Toe build-up",
@@ -730,7 +730,7 @@
           {
            "name": "Commando style sole with heels",
            "label": "Commando style sole with heels (Gents)",
-           "price": 3295,
+           "price": 3300,
            "extras": [
             {
              "name": "Toe build-up",
@@ -750,7 +750,7 @@
          "item": "Leather half sole",
          "name": "Leather half sole",
          "label": "Leather half sole (Gents)",
-         "price": 4295,
+         "price": 4300,
          "extras": [
           {
            "name": "Toe build-up",
@@ -762,7 +762,7 @@
           {
            "name": "Leather half sole",
            "label": "Leather half sole (Gents)",
-           "price": 4295,
+           "price": 4300,
            "extras": [
             {
              "name": "Toe build-up",
@@ -881,7 +881,7 @@
          "item": "Boot zip, up to 5\"",
          "name": "Boot zip, up to 5\"",
          "label": "Boot zip, up to 5\"",
-         "price": 1495,
+         "price": 1500,
          "extras": [
           {
            "name": "Each inch after",
@@ -1203,12 +1203,12 @@
         {
          "name": "1 key",
          "label": "Cloneable TPX1 – TPX5 – 1 key",
-         "price": 6995
+         "price": 7000
         },
         {
          "name": "2 keys",
          "label": "Cloneable TPX1 – TPX5 – 2 keys",
-         "price": 9995
+         "price": 10000
         }
        ]
       },
@@ -1297,61 +1297,61 @@
        "item": "Standard polish",
        "name": "Standard polish",
        "label": "Standard polish",
-       "price": 295
+       "price": 300
       },
       {
        "item": "Renovators",
        "name": "Renovators",
        "label": "Renovators",
-       "price": 495
+       "price": 500
       },
       {
        "item": "Parade gloss",
        "name": "Parade gloss",
        "label": "Parade gloss",
-       "price": 595
+       "price": 600
       },
       {
        "item": "Creams",
        "name": "Creams",
        "label": "Creams",
-       "price": 795
+       "price": 800
       },
       {
        "item": "Sports white renovator",
        "name": "Sports white renovator",
        "label": "Sports white renovator",
-       "price": 795
+       "price": 800
       },
       {
        "item": "Saddle soap",
        "name": "Saddle soap",
        "label": "Saddle soap",
-       "price": 895
+       "price": 900
       },
       {
        "item": "Instant shine",
        "name": "Instant shine",
        "label": "Instant shine",
-       "price": 595
+       "price": 600
       },
       {
        "item": "Dubbin",
        "name": "Dubbin",
        "label": "Dubbin",
-       "price": 495
+       "price": 500
       },
       {
        "item": "Dyes",
        "name": "Dyes",
        "label": "Dyes",
-       "price": 795
+       "price": 800
       },
       {
        "item": "Mink oil",
        "name": "Mink oil",
        "label": "Mink oil",
-       "price": 895
+       "price": 900
       }
      ]
     },
@@ -1362,61 +1362,61 @@
        "item": "Shoe stretcher",
        "name": "Shoe stretcher",
        "label": "Shoe stretcher",
-       "price": 795
+       "price": 800
       },
       {
        "item": "Protector",
        "name": "Protector",
        "label": "Protector",
-       "price": 795
+       "price": 800
       },
       {
        "item": "Suede cleaner",
        "name": "Suede cleaner",
        "label": "Suede cleaner",
-       "price": 795
+       "price": 800
       },
       {
        "item": "Leather polish",
        "name": "Leather polish",
        "label": "Leather polish",
-       "price": 795
+       "price": 800
       },
       {
        "item": "Cleaner restorer",
        "name": "Cleaner restorer",
        "label": "Cleaner restorer",
-       "price": 795
+       "price": 800
       },
       {
        "item": "Suede renovator",
        "name": "Suede renovator",
        "label": "Suede renovator",
-       "price": 795
+       "price": 800
       },
       {
        "item": "Nano spray protector",
        "name": "Nano spray protector",
        "label": "Nano spray protector",
-       "price": 1395
+       "price": 1400
       },
       {
        "item": "Bag & accessories polish",
        "name": "Bag & accessories polish",
        "label": "Bag & accessories polish",
-       "price": 795
+       "price": 800
       },
       {
        "item": "Leather balm",
        "name": "Leather balm",
        "label": "Leather balm",
-       "price": 1495
+       "price": 1500
       },
       {
        "item": "Shoe fresh",
        "name": "Shoe fresh",
        "label": "Shoe fresh",
-       "price": 795
+       "price": 800
       }
      ]
     },
@@ -1427,25 +1427,25 @@
        "item": "Wire suede brush",
        "name": "Wire suede brush",
        "label": "Wire suede brush",
-       "price": 395
+       "price": 400
       },
       {
        "item": "Multi-purpose suede brush",
        "name": "Multi-purpose suede brush",
        "label": "Multi-purpose suede brush",
-       "price": 595
+       "price": 600
       },
       {
        "item": "Twin pack brush",
        "name": "Twin pack brush",
        "label": "Twin pack brush",
-       "price": 795
+       "price": 800
       },
       {
        "item": "Horsehair brush (each)",
        "name": "Horsehair brush (each)",
        "label": "Horsehair brush (each)",
-       "price": 795
+       "price": 800
       }
      ]
     },
@@ -1462,49 +1462,49 @@
        "item": "Leather",
        "name": "Leather",
        "label": "Leather",
-       "price": 895
+       "price": 900
       },
       {
        "item": "Thermal",
        "name": "Thermal",
        "label": "Thermal",
-       "price": 595
+       "price": 600
       },
       {
        "item": "Memory foam",
        "name": "Memory foam",
        "label": "Memory foam",
-       "price": 795
+       "price": 800
       },
       {
        "item": "Gel",
        "name": "Gel",
        "label": "Gel",
-       "price": 995
+       "price": 1000
       },
       {
        "item": "Sports",
        "name": "Sports",
        "label": "Sports",
-       "price": 995
+       "price": 1000
       },
       {
        "item": "Half leather",
        "name": "Half leather",
        "label": "Half leather",
-       "price": 595
+       "price": 600
       },
       {
        "item": "Half sponge",
        "name": "Half sponge",
        "label": "Half sponge",
-       "price": 295
+       "price": 300
       },
       {
        "item": "Heel cushion",
        "name": "Heel cushion",
        "label": "Heel cushion",
-       "price": 595
+       "price": 600
       }
      ]
     },
@@ -1521,7 +1521,7 @@
        "item": "75cm (thick)",
        "name": "75cm (thick)",
        "label": "75cm (thick)",
-       "price": 295
+       "price": 300
       },
       {
        "item": "100cm",
@@ -1539,7 +1539,7 @@
        "item": "140cm",
        "name": "140cm",
        "label": "140cm",
-       "price": 395
+       "price": 400
       },
       {
        "item": "140cm (hiking)",
@@ -1551,13 +1551,13 @@
        "item": "180cm",
        "name": "180cm",
        "label": "180cm",
-       "price": 495
+       "price": 500
       },
       {
        "item": "Leather laces",
        "name": "Leather laces",
        "label": "Leather laces",
-       "price": 695
+       "price": 700
       }
      ]
     },
@@ -1568,7 +1568,7 @@
        "item": "Suede block",
        "name": "Suede block",
        "label": "Suede block",
-       "price": 895
+       "price": 900
       },
       {
        "item": "Heel grips",
@@ -1580,37 +1580,37 @@
        "item": "Shoe horn",
        "name": "Shoe horn",
        "label": "Shoe horn",
-       "price": 395
+       "price": 400
       },
       {
        "item": "Large shoe horn",
        "name": "Large shoe horn",
        "label": "Large shoe horn",
-       "price": 495
+       "price": 500
       },
       {
        "item": "XL shoe horn",
        "name": "XL shoe horn",
        "label": "XL shoe horn",
-       "price": 895
+       "price": 900
       },
       {
        "item": "Plastic shoe trees",
        "name": "Plastic shoe trees",
        "label": "Plastic shoe trees",
-       "price": 995
+       "price": 1000
       },
       {
        "item": "Wooden shoe trees",
        "name": "Wooden shoe trees",
        "label": "Wooden shoe trees",
-       "price": 1595
+       "price": 1600
       },
       {
        "item": "Boot shaper",
        "name": "Boot shaper",
        "label": "Boot shaper",
-       "price": 1395
+       "price": 1400
       }
      ]
     }
@@ -1626,7 +1626,7 @@
        "item": "Flat objects",
        "name": "Flat objects",
        "label": "Flat objects",
-       "price": 995,
+       "price": 1000,
        "extras": [
         {
          "name": "Extra word",
@@ -1639,7 +1639,7 @@
        "item": "Rotary objects",
        "name": "Rotary objects",
        "label": "Rotary objects",
-       "price": 1495,
+       "price": 1500,
        "extras": [
         {
          "name": "Extra word",
@@ -1652,7 +1652,7 @@
        "item": "Glass",
        "name": "Glass",
        "label": "Glass",
-       "price": 2295,
+       "price": 2300,
        "extras": [
         {
          "name": "Extra word",
@@ -1665,7 +1665,7 @@
        "item": "Watch backs",
        "name": "Watch backs",
        "label": "Watch backs",
-       "price": 1395,
+       "price": 1400,
        "extras": [
         {
          "name": "Extra word",
@@ -1722,7 +1722,7 @@
         {
          "name": "1 tag",
          "label": "Standard pet tags – 1 tag",
-         "price": 795,
+         "price": 800,
          "extras": [
           {
            "name": "Both sides",
