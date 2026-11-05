@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-05T14:22:29+00:00",
+ "generated": "2026-11-05T14:25:38+00:00",
  "departments": [
   {
    "group": "Shoe Repair",
@@ -1773,40 +1773,6 @@
          ]
         }
        ]
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "group": "Other",
-   "nodes": [
-    {
-     "group": "Sharpening",
-     "nodes": [
-      {
-       "item": "Knives",
-       "name": "Knives",
-       "label": "Knives",
-       "price": 500
-      },
-      {
-       "item": "Secateurs",
-       "name": "Secateurs",
-       "label": "Secateurs",
-       "price": 800
-      },
-      {
-       "item": "Lawn mower blades",
-       "name": "Lawn mower blades",
-       "label": "Lawn mower blades",
-       "price": 1000
-      },
-      {
-       "item": "Shears",
-       "name": "Shears",
-       "label": "Shears",
-       "price": 1500
       }
      ]
     }
