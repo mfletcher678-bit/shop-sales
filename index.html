@@ -101,6 +101,17 @@
   .sale.void .what, .sale.void .amount { text-decoration: line-through; color: var(--muted); }
   .sale.refund .amount, .sale.refund .lines { color: var(--danger); }
   .sale.drawer .what, .sale.drawer .amount { color: var(--muted); }
+  .receipt-link {
+    margin-top: 4px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--accent); font: inherit; font-size: 14px;
+  }
+  .receipt-view {
+    position: fixed; inset: 0; z-index: 10; background: rgba(0, 0, 0, 0.85);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px);
+  }
+  .receipt-view[hidden] { display: none; }
+  .receipt-view img { max-width: 100%; max-height: calc(100% - 40px); object-fit: contain; border-radius: 8px; background: #fff; }
   .pill.refund { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
   .close-row { display: flex; justify-content: space-between; padding: 4px 0; font-variant-numeric: tabular-nums; }
   .verdict { font-weight: 700; }
@@ -252,6 +263,11 @@
   </section>
 </main>
 
+<div id="receiptView" class="receipt-view" hidden>
+  <img id="receiptImage" alt="Receipt photo">
+  <div class="muted">Tap anywhere to close</div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   // Publishable key: meant to be public. Row-level security only lets the owner's login read sales.
@@ -296,7 +312,7 @@
   async function fetchDrawerEvents(from, to) {
     const { data, error } = await db
       .from("drawer_events")
-      .select("id, happened_at, type, amount_pence, reason, voided, shops(name)")
+      .select("id, happened_at, type, amount_pence, reason, voided, receipt_path, shops(name)")
       .gte("happened_at", from.toISOString())
       .lt("happened_at", to.toISOString())
       .order("happened_at", { ascending: false });
@@ -485,6 +501,7 @@
       <div class="what">
         <span class="pill">${paidOut ? "Paid out" : "No sale"}</span>${e.voided ? '<span class="pill">Void</span>' : ""}${shop}
         <div>${paidOut ? escapeHtml(e.reason ?? "") : "Drawer opened"}</div>
+        ${e.receipt_path ? `<button class="receipt-link" data-path="${escapeHtml(e.receipt_path)}">See the receipt</button>` : ""}
       </div>
       <div class="amount">${paidOut ? pounds(-e.amount_pence) : ""}</div>
     </div>`;
@@ -711,6 +728,25 @@
     $("signIn").disabled = false;
     if (error) $("loginError").textContent = "That email and password weren't accepted.";
     else startApp();
+  };
+
+  // Paid out receipts are private photos: fetch a short-lived link when one is asked for.
+  $("sales").addEventListener("click", async (ev) => {
+    const button = ev.target.closest(".receipt-link");
+    if (!button) return;
+    button.disabled = true;
+    const { data, error } = await db.storage.from("shop-photos").createSignedUrl(button.dataset.path, 300);
+    button.disabled = false;
+    if (error || !data) {
+      button.textContent = "Couldn't load the receipt";
+      return;
+    }
+    $("receiptImage").src = data.signedUrl;
+    $("receiptView").hidden = false;
+  });
+  $("receiptView").onclick = () => {
+    $("receiptView").hidden = true;
+    $("receiptImage").removeAttribute("src");
   };
 
   $("signOut").onclick = async () => {

@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-31T13:36:51+00:00",
+ "generated": "2026-11-04T18:13:33+00:00",
  "departments": [
   {
    "group": "Shoe Repair",
@@ -1809,6 +1809,32 @@
        "price": 1500
       }
      ]
+    }
+   ]
+  },
+  {
+   "group": "Watches",
+   "nodes": [
+    {
+     "item": "Battery",
+     "name": "Battery",
+     "label": "Watch battery",
+     "price": 895,
+     "from": true
+    },
+    {
+     "item": "Long life battery",
+     "name": "Long life battery",
+     "label": "Long life watch battery",
+     "price": 1295,
+     "from": true
+    },
+    {
+     "item": "Repair",
+     "name": "Repair",
+     "label": "Watch repair",
+     "price": 0,
+     "from": true
     }
    ]
   }
