@@ -136,6 +136,14 @@
     background: var(--card); color: var(--ink);
   }
   .modes button.on { background: var(--navy); color: #fff; }
+  /* Owner logins see several shops: pick one, or all of them added together. */
+  .shops { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 8px; scrollbar-width: none; }
+  .shops::-webkit-scrollbar { display: none; }
+  .shops button {
+    flex: none; border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font: inherit;
+    font-size: 15px; background: var(--card); color: var(--ink); white-space: nowrap;
+  }
+  .shops button.on { background: var(--navy); border-color: var(--navy); color: #fff; font-weight: 600; }
   .daynav .label input {
     display: block; margin: 4px auto 0; width: auto; padding: 4px 8px; font-size: 14px;
     border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink);
@@ -170,6 +178,7 @@
 </section>
 
 <main id="app" hidden>
+  <div class="shops" id="shops" hidden></div>
   <div class="modes" id="modes">
     <button data-mode="day" class="on">Day</button>
     <button data-mode="range">Range</button>
@@ -298,10 +307,14 @@
     $("signOut").hidden = which !== "app";
   }
 
+  // The shop being looked at; null = every shop this login can see, added together.
+  let shop = null;
+  const forShop = (query) => (shop ? query.eq("shop_id", shop) : query);
+
   async function fetchSales(from, to) {
-    const { data, error } = await db
+    const { data, error } = await forShop(db
       .from("sales")
-      .select("id, sold_at, total_pence, method, cash_pence, card_pence, refund_reason, voided, shops(name), sale_lines(line_no, department, amount_pence, description, quantity)")
+      .select("id, sold_at, total_pence, method, cash_pence, card_pence, refund_reason, voided, shops(name), sale_lines(line_no, department, amount_pence, description, quantity)"))
       .gte("sold_at", from.toISOString())
       .lt("sold_at", to.toISOString())
       .order("sold_at", { ascending: false });
@@ -310,9 +323,9 @@
   }
 
   async function fetchDrawerEvents(from, to) {
-    const { data, error } = await db
+    const { data, error } = await forShop(db
       .from("drawer_events")
-      .select("id, happened_at, type, amount_pence, reason, voided, receipt_path, shops(name)")
+      .select("id, happened_at, type, amount_pence, reason, voided, receipt_path, shops(name)"))
       .gte("happened_at", from.toISOString())
       .lt("happened_at", to.toISOString())
       .order("happened_at", { ascending: false });
@@ -323,9 +336,9 @@
   const isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
   async function fetchCloses(d) {
-    const { data, error } = await db
+    const { data, error } = await forShop(db
       .from("day_closes")
-      .select("closed_at, float_pence, expected_cash_pence, counted_cash_pence, till_card_pence, machine_card_pence, shops(name)")
+      .select("closed_at, float_pence, expected_cash_pence, counted_cash_pence, till_card_pence, machine_card_pence, shops(name)"))
       .eq("day", isoDate(d))
       .order("closed_at", { ascending: false });
     if (error) throw error;
@@ -333,9 +346,9 @@
   }
 
   async function fetchTakings(from, to) {
-    const { data, error } = await db
+    const { data, error } = await forShop(db
       .from("sales")
-      .select("total_pence")
+      .select("total_pence"))
       .eq("voided", false)
       .gte("sold_at", from.toISOString())
       .lt("sold_at", to.toISOString());
@@ -534,13 +547,43 @@
     channel.subscribe((status) => setLive(status === "SUBSCRIBED", status === "SUBSCRIBED" ? "Live" : "Reconnecting"));
   }
 
-  // The header names the shop this login can see (each login only sees its own shops).
-  async function showShopName() {
-    const { data } = await db.from("shops").select("name");
-    if (data && data.length === 1) {
-      $("shopName").textContent = data[0].name;
-      document.title = data[0].name;
+  // The header names the shop this login can see (each login only sees its own shops). A login
+  // that sees several gets a row of shop buttons: "All shops" adds them together, or pick one.
+  // The choice is remembered on this phone.
+  const shortName = (name) => name.replace(/^Fletchers Cobblers\s*-\s*/i, "");
+  async function loadShops() {
+    const { data } = await db.from("shops").select("id, name").order("name");
+    const shops = data ?? [];
+    const row = $("shops");
+    row.hidden = shops.length < 2;
+    if (shops.length < 2) {
+      shop = null;
+      if (shops.length === 1) {
+        $("shopName").textContent = shops[0].name;
+        document.title = shops[0].name;
+      }
+      return;
     }
+    const saved = localStorage.getItem("salesShop");
+    shop = shops.some((s) => s.id === saved) ? saved : null;
+    const choices = [{ id: null, label: "All shops", title: "All shops" },
+      ...shops.map((s) => ({ id: s.id, label: shortName(s.name), title: s.name }))];
+    const pick = () => {
+      const chosen = choices.find((c) => c.id === shop);
+      $("shopName").textContent = chosen.title;
+      document.title = chosen.title;
+      for (const b of row.querySelectorAll("button")) b.classList.toggle("on", (b.dataset.shop || null) === shop);
+    };
+    row.innerHTML = choices.map((c) => `<button data-shop="${c.id ?? ""}">${escapeHtml(c.label)}</button>`).join("");
+    for (const b of row.querySelectorAll("button")) {
+      b.onclick = () => {
+        shop = b.dataset.shop || null;
+        if (shop) localStorage.setItem("salesShop", shop); else localStorage.removeItem("salesShop");
+        pick();
+        if (mode === "day") load(); else loadPeriod();
+      };
+    }
+    pick();
   }
 
   async function startApp() {
@@ -554,7 +597,7 @@
     }
     show("app");
     day = startOfDay(new Date());
-    showShopName();
+    await loadShops();
     load();
     subscribe();
   }
@@ -604,7 +647,9 @@
   }
 
   async function totals({ from, to }) {
-    const { data, error } = await db.rpc("sales_totals", { p_from: from.toISOString(), p_to: to.toISOString() });
+    const args = { p_from: from.toISOString(), p_to: to.toISOString() };
+    if (shop) args.p_shop = shop;
+    const { data, error } = await db.rpc("sales_totals", args);
     if (error) throw error;
     return data;
   }
