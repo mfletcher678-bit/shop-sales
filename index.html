@@ -52,6 +52,8 @@
     gap: 10px;
   }
   header h1 { font-size: 20px; margin: 0; flex: 1; letter-spacing: 0.2px; }
+  header .back { color: #fff; text-decoration: none; border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 8px; padding: 6px 10px; font-size: 14px; }
+  header .back[hidden] { display: none; }
   .live { display: flex; align-items: center; gap: 6px; font-size: 14px; opacity: 0.9; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: #9aa5b1; }
   .live.on .dot { background: #5ee06a; box-shadow: 0 0 0 0 rgba(94, 224, 106, 0.7); }
@@ -160,6 +162,7 @@
 </head>
 <body>
 <header>
+  <a id="backToRota" class="back" href="rota.html" hidden>‹ Rota</a>
   <h1 id="shopName">Shop Sales</h1>
   <div class="live" id="live" hidden><span class="dot"></span><span id="liveText">Connecting</span></div>
   <button id="signOut" hidden>Sign out</button>
@@ -285,6 +288,9 @@
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   const $ = (id) => document.getElementById(id);
+  // Opened from the rota's Sales button (the rota home-screen app has no back button): offer the way back.
+  if (new URLSearchParams(location.search).get("from") === "rota") sessionStorage.setItem("fromRota", "1");
+  $("backToRota").hidden = !sessionStorage.getItem("fromRota");
   const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
   const pounds = (pence) => money.format(pence / 100);
   const clock = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" });

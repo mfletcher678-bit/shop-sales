@@ -32,6 +32,8 @@
   header { background: var(--navy); color: #fff; padding: calc(env(safe-area-inset-top) + 14px) 16px 14px; display: flex; align-items: center; gap: 10px; }
   header h1 { font-size: 20px; margin: 0; flex: 1; }
   header .who { font-size: 14px; opacity: 0.85; }
+  header .hbtn { color: #fff; text-decoration: none; border: 1px solid rgba(255,255,255,0.4); border-radius: 8px; padding: 6px 10px; font-size: 14px; }
+  header .hbtn[hidden] { display: none; }
   header button { background: none; border: 1px solid rgba(255,255,255,0.4); color: #fff; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 14px; cursor: pointer; }
   nav { display: flex; gap: 6px; padding: 10px 16px 0; max-width: 980px; margin: 0 auto; }
   nav button { flex: 1; border: none; border-radius: 10px; padding: 10px; font: inherit; font-weight: 600; background: var(--card); color: var(--ink); cursor: pointer; }
@@ -140,6 +142,7 @@
 <header>
   <h1>Shop Rota</h1>
   <span class="who" id="who"></span>
+  <a id="salesBtn" class="hbtn" href="index.html?from=rota" hidden>Sales</a>
   <button id="menuBtn" hidden>Account</button>
 </header>
 <nav id="tabs" hidden></nav>
@@ -306,6 +309,9 @@ function supaApi() {
       }
       data.logins = data.me?.is_admin ? must(await db.from("rota_logins").select("*")) : [];
       data.extras = data.me ? must(await db.from("rota_extra_days").select("*").order("created_at")) : [];
+      // Only logins that can see the shop sales (the owner) get the Sales button; staff have no members row.
+      const sales = await db.from("members").select("role").in("role", ["owner", "viewer"]).limit(1);
+      data.canSeeSales = !sales.error && sales.data.length > 0;
       return data;
     },
     async shifts(from, to) { return must(await db.from("rota_shifts").select("*").gte("day", from).lte("day", to)); },
@@ -391,7 +397,7 @@ function demoApi(as) {
     async loadClosures() {},
     async load() {
       await later();
-      if (me.is_admin) return { places, people, closures: store.closures, leave, me, logins: store.logins, extras: store.extras };
+      if (me.is_admin) return { places, people, closures: store.closures, leave, me, logins: store.logins, extras: store.extras, canSeeSales: true };
       const team = people.map((p) => (p === me ? p : { id: p.id, name: p.name, days_per_week: p.days_per_week, home_place_id: p.home_place_id, is_admin: p.is_admin, active: p.active, sort: p.sort, tracks_holiday: p.tracks_holiday, left_on: p.left_on ?? null }));
       const seen = leave.filter((l) => l.person_id === me.id).concat(leave.filter((l) => l.person_id !== me.id && ["holiday", "rest"].includes(l.kind) && l.status === "approved")
         .map((l) => ({ id: l.id, person_id: l.person_id, first_day: l.first_day, last_day: l.last_day, kind: l.kind, status: l.status })));
@@ -462,6 +468,7 @@ function setTabs() {
 function render() {
   setTabs();
   $("who").textContent = S.me ? S.me.name : "";
+  $("salesBtn").hidden = !S.canSeeSales;
   $("menuBtn").hidden = false;
   if (S.tab === "holidays") renderHolidays();
   else if (S.tab === "calendar") renderCalendar();
@@ -1447,7 +1454,7 @@ async function reload() {
 
 // ---- Signing in ----------------------------------------------------------------------------------------------------
 function showSignIn(message) {
-  $("tabs").hidden = true; $("menuBtn").hidden = true; $("who").textContent = "";
+  $("tabs").hidden = true; $("menuBtn").hidden = true; $("salesBtn").hidden = true; $("who").textContent = "";
   $("app").innerHTML = `<div class="card login"><h2>Sign in</h2>
     <label>Email</label><input type="email" id="email" autocomplete="username">
     <label>Password</label><input type="password" id="password" autocomplete="current-password">
