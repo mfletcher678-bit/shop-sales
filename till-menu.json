@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-06T09:46:29+00:00",
+ "generated": "2026-11-06T09:52:04+00:00",
  "departments": [
   {
    "group": "Shoe Repair",
@@ -1284,6 +1284,12 @@
        ]
       }
      ]
+    },
+    {
+     "item": "Car key battery",
+     "name": "Car key battery",
+     "label": "Car key battery",
+     "price": 995
     }
    ]
   },
