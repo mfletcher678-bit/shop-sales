@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-06T09:52:04+00:00",
+ "generated": "2026-11-06T11:38:53+00:00",
  "departments": [
   {
    "group": "Shoe Repair",
@@ -999,6 +999,13 @@
        ]
       }
      ]
+    },
+    {
+     "item": "Misc",
+     "name": "Misc",
+     "label": "Shoe Repair misc",
+     "price": 0,
+     "from": true
     }
    ]
   },
@@ -1158,6 +1165,13 @@
        "from": true
       }
      ]
+    },
+    {
+     "item": "Misc",
+     "name": "Misc",
+     "label": "Key Cutting misc",
+     "price": 0,
+     "from": true
     }
    ]
   },
@@ -1290,6 +1304,13 @@
      "name": "Car key battery",
      "label": "Car key battery",
      "price": 995
+    },
+    {
+     "item": "Misc",
+     "name": "Misc",
+     "label": "Car Keys misc",
+     "price": 0,
+     "from": true
     }
    ]
   },
@@ -1619,6 +1640,13 @@
        "price": 1400
       }
      ]
+    },
+    {
+     "item": "Misc",
+     "name": "Misc",
+     "label": "Shoe Care misc",
+     "price": 0,
+     "from": true
     }
    ]
   },
@@ -1781,6 +1809,13 @@
        ]
       }
      ]
+    },
+    {
+     "item": "Misc",
+     "name": "Misc",
+     "label": "Engraving misc",
+     "price": 0,
+     "from": true
     }
    ]
   },
@@ -1815,6 +1850,13 @@
        "price": 1500
       }
      ]
+    },
+    {
+     "item": "Misc",
+     "name": "Misc",
+     "label": "Other misc",
+     "price": 0,
+     "from": true
     }
    ]
   },
@@ -1839,6 +1881,13 @@
      "item": "Repair",
      "name": "Repair",
      "label": "Watch repair",
+     "price": 0,
+     "from": true
+    },
+    {
+     "item": "Misc",
+     "name": "Misc",
+     "label": "Watches misc",
      "price": 0,
      "from": true
     }
