@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Shop Sales">
 <title>Shop Sales</title>
+<link rel="manifest" href="sales.webmanifest">
+<link rel="icon" href="sales-icon-192.png">
+<link rel="apple-touch-icon" href="sales-icon-180.png">
 <style>
   :root {
     --navy: #003661;
@@ -821,6 +824,8 @@
   setInterval(catchUp, 60_000);
 
   db.auth.getSession().then(({ data }) => (data.session ? startApp() : show("login")));
+  // Lets the page be installed as a home-screen app (the same worker the rota uses; it caches nothing).
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
 </body>
 </html>
