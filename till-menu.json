@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-06T11:38:53+00:00",
+ "generated": "2026-11-06T15:32:18+00:00",
  "departments": [
   {
    "group": "Shoe Repair",
@@ -1751,60 +1751,17 @@
      "group": "Pet tags",
      "nodes": [
       {
-       "item": "Standard pet tags",
+       "item": "Pet tags",
        "choices": [
         {
          "name": "1 tag",
-         "label": "Standard pet tags – 1 tag",
-         "price": 800,
-         "extras": [
-          {
-           "name": "Both sides",
-           "price": 200,
-           "each": false
-          }
-         ]
+         "label": "Pet tags – 1 tag",
+         "price": 1000
         },
         {
          "name": "2 tags",
-         "label": "Standard pet tags – 2 tags",
-         "price": 1200,
-         "extras": [
-          {
-           "name": "Both sides",
-           "price": 200,
-           "each": false
-          }
-         ]
-        }
-       ]
-      },
-      {
-       "item": "Flag range & enamel tags",
-       "choices": [
-        {
-         "name": "1 tag",
-         "label": "Flag range & enamel tags – 1 tag",
-         "price": 1000,
-         "extras": [
-          {
-           "name": "Both sides",
-           "price": 200,
-           "each": false
-          }
-         ]
-        },
-        {
-         "name": "2 tags",
-         "label": "Flag range & enamel tags – 2 tags",
-         "price": 1500,
-         "extras": [
-          {
-           "name": "Both sides",
-           "price": 200,
-           "each": false
-          }
-         ]
+         "label": "Pet tags – 2 tags",
+         "price": 1500
         }
        ]
       }
