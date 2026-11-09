@@ -167,6 +167,7 @@
 <header>
   <a id="backToRota" class="back" href="rota.html" hidden>‹ Rota</a>
   <h1 id="shopName">Shop Sales</h1>
+  <a id="payBtn" class="back" href="payroll.html?from=sales" hidden>Payroll</a>
   <div class="live" id="live" hidden><span class="dot"></span><span id="liveText">Connecting</span></div>
   <button id="signOut" hidden>Sign out</button>
 </header>
@@ -605,6 +606,8 @@
       return;
     }
     show("app");
+    // Payroll button for logins that run a payroll (the database decides; false for everyone else).
+    db.rpc("payroll_is_admin").then((r) => { $("payBtn").hidden = r.data !== true; });
     day = startOfDay(new Date());
     await loadShops();
     load();

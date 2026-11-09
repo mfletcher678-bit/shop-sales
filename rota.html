@@ -35,9 +35,11 @@
   header .hbtn { color: #fff; text-decoration: none; border: 1px solid rgba(255,255,255,0.4); border-radius: 8px; padding: 6px 10px; font-size: 14px; }
   header .hbtn[hidden] { display: none; }
   header button { background: none; border: 1px solid rgba(255,255,255,0.4); color: #fff; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 14px; cursor: pointer; }
+  @media (max-width: 520px) { header { gap: 6px; padding-left: 12px; padding-right: 12px; } header h1 { font-size: 18px; white-space: nowrap; } header .who { display: none; } header .hbtn, header button { padding: 6px 8px; } }
   nav { display: flex; gap: 6px; padding: 10px 16px 0; max-width: 980px; margin: 0 auto; }
   nav button { flex: 1; border: none; border-radius: 10px; padding: 10px; font: inherit; font-weight: 600; background: var(--card); color: var(--ink); cursor: pointer; }
   nav button.on { background: var(--navy); color: #fff; }
+  @media (max-width: 520px) { nav { gap: 4px; padding: 10px 10px 0; } nav button { padding: 9px 2px; font-size: 14px; } }
   @media (prefers-color-scheme: dark) { nav button.on { background: var(--accent); color: #0e151d; } }
   main { max-width: 980px; margin: 0 auto; padding: 12px 16px calc(env(safe-area-inset-bottom) + 32px); }
   .card { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
@@ -127,6 +129,7 @@
   table.simple { width: 100%; border-collapse: collapse; font-size: 15px; }
   table.simple th, table.simple td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: left; }
   table.simple td.num, table.simple th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.paytable { font-size: 13px; } table.paytable th, table.paytable td { padding: 7px 3px; } table.paytable td .small { font-size: 12px; }
   .myweek li { display: flex; gap: 12px; align-items: center; }
   .myweek .d { width: 92px; color: var(--muted); font-size: 15px; }
   .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
@@ -142,6 +145,7 @@
 <header>
   <h1>Shop Rota</h1>
   <span class="who" id="who"></span>
+  <a id="payBtn" class="hbtn" href="payroll.html?from=rota" hidden>Payroll</a>
   <a id="salesBtn" class="hbtn" href="index.html?from=rota" hidden>Sales</a>
   <button id="menuBtn" hidden>Account</button>
 </header>
@@ -150,6 +154,8 @@
 <div id="modal" class="modal" hidden><div class="sheet" id="sheet"></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="payroll-calc.js"></script>
+<script src="payroll.js"></script>
 <script>
 "use strict";
 // Rotas and holidays for Fletchers Cobblers Ltd and the shops it plans shifts for.
@@ -159,6 +165,8 @@ const SUPABASE_KEY = "sb_publishable_W7wlg7ZG_k_gYwbj1WcqCA_3JzDF_K3";
 // ?demo=admin or ?demo=staff: made-up data to show people round. It never touches the database,
 // so nothing real is shown and nothing anyone does is saved.
 const DEMO = { admin: "admin", staff: "staff" }[new URLSearchParams(location.search).get("demo")] ?? null;
+// Staff see a Payslips tab once this is on. Off until the owner has tried payroll (on in the demo).
+const STAFF_PAYSLIPS = !!DEMO;
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -352,6 +360,7 @@ function supaApi() {
     async deleteClosure(day) { must(await db.from("rota_closures").delete().eq("day", day)); },
     async addExtra(row) { must(await db.from("rota_extra_days").insert(row)); },
     async deleteExtra(id) { must(await db.from("rota_extra_days").delete().eq("id", id)); },
+    ...payrollSupa(db, must),
   };
 }
 
@@ -428,12 +437,14 @@ function demoApi(as) {
     async addClosures(rows) { rows.forEach((r) => { const i = store.closures.findIndex((c) => c.day === r.day); if (i >= 0) store.closures[i] = r; else store.closures.push(r); }); store.closures.sort((a, b) => a.day.localeCompare(b.day)); },
     async deleteClosure(day) { store.closures.splice(store.closures.findIndex((c) => c.day === day), 1); },
     seedClosures(rows) { store.closures.push(...rows); },
+    ...payrollDemo(people, me),
   };
 }
 
 const api = DEMO ? demoApi(DEMO) : supaApi();
 if (DEMO) {
   $("demoBar").hidden = false;
+  $("payBtn").href = "payroll.html?demo=admin&from=rota";
   const y = Number(TODAY.slice(0, 4));
   api.seedClosures([
     [`${y}-01-01`, "New Year's Day", "bank"], [`${y}-04-03`, "Good Friday", "bank"], [`${y}-04-06`, "Easter Monday", "bank"],
@@ -447,6 +458,8 @@ if (DEMO) {
 // ---- Loading ------------------------------------------------------------------------------------------
 async function loadAll(userId) {
   Object.assign(S, await api.load(userId));
+  // Payroll: a Payroll button for payroll admins, and everyone's own payslips (none until the tables exist).
+  if (S.me) [S.payAdmin, S.myPayslips] = await Promise.all([api.payIsAdmin().catch(() => false), api.myPayslips().catch(() => [])]);
   await loadWeek();
 }
 async function loadWeek() {
@@ -458,7 +471,8 @@ async function loadWeek() {
 
 // ---- Screens ------------------------------------------------------------------------------------------
 function setTabs() {
-  const tabs = [["rota", "Rota"], ["calendar", "Calendar"], ["holidays", "Holidays"], ...(isAdmin() ? [["people", "People"]] : [])];
+  const tabs = [["rota", "Rota"], ["calendar", "Calendar"], ["holidays", "Holidays"], ...(isAdmin() ? [["people", "People"]] : []),
+    ...(STAFF_PAYSLIPS && (!isAdmin() || S.myPayslips?.length) ? [["payslips", "Payslips"]] : [])];
   $("tabs").hidden = false;
   const waiting = isAdmin() ? S.leave.filter(needsDecision).length : 0;
   $("tabs").innerHTML = tabs.map(([k, t]) => `<button data-tab="${k}" class="${S.tab === k ? "on" : ""}">${t}${k === "holidays" && waiting ? ` (${waiting})` : ""}</button>`).join("");
@@ -469,10 +483,12 @@ function render() {
   setTabs();
   $("who").textContent = S.me ? S.me.name : "";
   $("salesBtn").hidden = !S.canSeeSales;
+  $("payBtn").hidden = !S.payAdmin;
   $("menuBtn").hidden = false;
   if (S.tab === "holidays") renderHolidays();
   else if (S.tab === "calendar") renderCalendar();
   else if (S.tab === "people" && isAdmin()) renderPeople();
+  else if (S.tab === "payslips" && STAFF_PAYSLIPS) renderPayslips();
   else renderRota();
   const card = pushCard();
   if (card) { $("app").insertAdjacentHTML("afterbegin", card); wirePushCard(); }
@@ -1407,7 +1423,7 @@ function wirePushSection() {
 /** Opens what a notification points at: #holidays, #calendar or #week=YYYY-MM-DD. */
 function applyHash() {
   const h = location.hash;
-  if (h === "#holidays" || h === "#calendar") S.tab = h.slice(1);
+  if (h === "#holidays" || h === "#calendar" || h === "#payslips") S.tab = h.slice(1);
   else if (/^#week=\d{4}-\d{2}-\d{2}$/.test(h)) { S.tab = "rota"; S.week = monday(h.slice(6)); }
   else return false;
   history.replaceState(null, "", location.pathname + location.search);
@@ -1454,7 +1470,7 @@ async function reload() {
 
 // ---- Signing in ----------------------------------------------------------------------------------------------------
 function showSignIn(message) {
-  $("tabs").hidden = true; $("menuBtn").hidden = true; $("salesBtn").hidden = true; $("who").textContent = "";
+  $("tabs").hidden = true; $("menuBtn").hidden = true; $("salesBtn").hidden = true; $("payBtn").hidden = true; $("who").textContent = "";
   $("app").innerHTML = `<div class="card login"><h2>Sign in</h2>
     <label>Email</label><input type="email" id="email" autocomplete="username">
     <label>Password</label><input type="password" id="password" autocomplete="current-password">

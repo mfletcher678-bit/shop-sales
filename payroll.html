@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#003661">
+<meta name="robots" content="noindex">
+<title>Payroll</title>
+<link rel="icon" href="rota-icon-192.png">
+<!-- The same look as the rota (copied from rota.html's styles). -->
+<style>
+  :root {
+    --navy: #003661; --accent: #003661; --bg: #eef1f5; --card: #ffffff; --ink: #1b1f24;
+    --muted: #6b7280; --line: #e3e7ec; --ok: #2e7d32; --ok-soft: #e3f1e4; --danger: #c62828;
+    --danger-soft: #fbe5e5; --warn-soft: #fff3cd; --warn-ink: #664d03; --shade: #f3f4f6;
+    --p0: #003661; --p0s: #dce7f2; --p1: #2e7d32; --p1s: #e0f0e1; --p2: #8a5a00; --p2s: #f7ead0;
+    --p3: #6a3d9a; --p3s: #ece3f5; --p4: #00707a; --p4s: #d8eff1; --p5: #9c2f5b; --p5s: #f6e0e9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --accent: #8fbbe8; --bg: #0e151d; --card: #17212c; --ink: #e7edf3; --muted: #93a3b5;
+      --line: #263341; --ok: #6cc070; --ok-soft: #1f3324; --danger: #ef6b6b; --danger-soft: #3a1f22;
+      --warn-soft: #3a3218; --warn-ink: #f0d58a; --shade: #1d2834;
+      --p0: #9cc1ef; --p0s: #1d2f44; --p1: #7fcf83; --p1s: #1e3322; --p2: #e6b862; --p2s: #3a2f18;
+      --p3: #c3a2ea; --p3s: #2e2440; --p4: #6fd0d8; --p4s: #163538; --p5: #ec92b6; --p5s: #3d1f2c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  header { background: var(--navy); color: #fff; padding: calc(env(safe-area-inset-top) + 14px) 16px 14px; display: flex; align-items: center; gap: 10px; }
+  header h1 { font-size: 20px; margin: 0; flex: 1; }
+  header .who { font-size: 14px; opacity: 0.85; }
+  header .hbtn { color: #fff; text-decoration: none; border: 1px solid rgba(255,255,255,0.4); border-radius: 8px; padding: 6px 10px; font-size: 14px; }
+  header .hbtn[hidden] { display: none; }
+  header button { background: none; border: 1px solid rgba(255,255,255,0.4); color: #fff; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 14px; cursor: pointer; }
+  @media (max-width: 520px) { header { gap: 6px; padding-left: 12px; padding-right: 12px; } header h1 { font-size: 18px; white-space: nowrap; } header .who { display: none; } header .hbtn, header button { padding: 6px 8px; } }
+  nav { display: flex; gap: 6px; padding: 10px 16px 0; max-width: 980px; margin: 0 auto; }
+  nav button { flex: 1; border: none; border-radius: 10px; padding: 10px; font: inherit; font-weight: 600; background: var(--card); color: var(--ink); cursor: pointer; }
+  nav button.on { background: var(--navy); color: #fff; }
+  @media (max-width: 520px) { nav { gap: 4px; padding: 10px 10px 0; } nav button { padding: 9px 2px; font-size: 14px; } }
+  @media (prefers-color-scheme: dark) { nav button.on { background: var(--accent); color: #0e151d; } }
+  main { max-width: 980px; margin: 0 auto; padding: 12px 16px calc(env(safe-area-inset-bottom) + 32px); }
+  .card { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  h2 { font-size: 18px; margin: 0 0 10px; }
+  h3 { font-size: 15px; margin: 14px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .muted { color: var(--muted); }
+  .small { font-size: 14px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .spacer { flex: 1; }
+  button.btn { border: none; border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 600; background: var(--navy); color: #fff; cursor: pointer; }
+  button.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  button.btn.ok { background: var(--ok); }
+  button.btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--line); }
+  button.btn:disabled { opacity: 0.45; cursor: default; }
+  @media (prefers-color-scheme: dark) { button.btn:not(.ghost):not(.danger) { color: #0e151d; background: var(--accent); } button.btn.ok { background: var(--ok); } }
+  input, select, textarea { font: inherit; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); width: 100%; }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
+  label.check { display: flex; align-items: center; gap: 10px; color: var(--ink); font-size: 16px; margin: 8px 0; }
+  label.check input { width: 22px; height: 22px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .msg { padding: 10px 12px; border-radius: 10px; margin: 10px 0; font-size: 15px; }
+  .msg.warn { background: var(--warn-soft); color: var(--warn-ink); }
+  .msg.bad { background: var(--danger-soft); color: var(--danger); }
+  .msg.good { background: var(--ok-soft); color: var(--ok); }
+  .weeknav { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .weeknav button { width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--card); color: var(--ink); font-size: 22px; cursor: pointer; }
+  .weeknav .label { flex: 1; text-align: center; font-weight: 600; font-size: 17px; }
+  .weeknav .label small { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
+  .pickwrap { position: relative; display: inline-block; cursor: pointer; border-bottom: 1px dashed var(--muted); }
+  .pickwrap input.pick { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; padding: 0; border: 0; cursor: pointer; }
+  a.goweek { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
+  .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 14px; background: var(--card); }
+  table.rota { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 640px; }
+  table.rota th, table.rota td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
+  table.rota th { font-size: 13px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+  table.rota th.today { color: var(--accent); }
+  table.rota td.name, table.rota th.name { position: sticky; left: 0; background: var(--card); z-index: 1; font-weight: 600; width: 64px; min-width: 64px; max-width: 72px; padding: 6px 4px 6px 8px; font-size: 14px; overflow-wrap: anywhere; }
+  table.rota th.name { white-space: normal; font-size: 11px; font-weight: 400; line-height: 1.2; }
+  table.rota td.name small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; line-height: 1.2; }
+  table.rota tr.me td.name { color: var(--accent); }
+  table.rota td.cell { min-width: 86px; height: 48px; }
+  table.rota td.cell.edit { cursor: pointer; }
+  table.rota td.cell.edit:hover { background: var(--shade); }
+  table.rota td.closed { background: var(--shade); color: var(--muted); font-size: 12px; }
+  table.rota tr.cover td { border-bottom: none; font-size: 12px; }
+  .chip { display: inline-block; border-radius: 7px; padding: 3px 7px; margin: 1px 2px 1px 0; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .chip.hol { background: var(--ok-soft); color: var(--ok); }
+  .chip.req { background: transparent; color: var(--ok); border: 1px dashed var(--ok); }
+  .chip.sick { background: var(--danger-soft); color: var(--danger); }
+  .chip.gap { background: var(--danger-soft); color: var(--danger); font-weight: 500; }
+  .chip.clash { background: var(--warn-soft); color: var(--warn-ink); }
+  .chip.rest { background: var(--shade); color: var(--muted); }
+  .chip.reqrest { background: transparent; color: var(--muted); border: 1px dashed var(--muted); }
+  .cal { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
+  .cal .hd { font-size: 12px; color: var(--muted); text-align: center; font-weight: 600; padding: 2px 0; }
+  .cal .day { background: var(--card); border-radius: 8px; min-height: 76px; padding: 4px; cursor: pointer; overflow: hidden; border: 2px solid transparent; min-width: 0; }
+  .cal .day.out { opacity: 0.45; }
+  .cal .day.today { border-color: var(--accent); }
+  .cal .day.closed { background: var(--shade); cursor: default; }
+  .cal .day.busy { opacity: 0.4; }
+  .cal .day.start { border: 2px dashed var(--ok); background: var(--ok-soft); }
+  .cal .n { font-size: 12px; font-weight: 700; }
+  .cal .cl { font-size: 10px; color: var(--muted); line-height: 1.15; margin-top: 2px; }
+  .cal .chip { display: block; font-size: 11px; padding: 1px 4px; margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; }
+  .cal .chip.dim { opacity: 0.3; }
+  .seg { display: flex; gap: 6px; margin-top: 8px; }
+  .seg button { flex: 1; border: 2px solid var(--line); border-radius: 10px; padding: 9px 4px; font: inherit; font-weight: 600; background: var(--card); color: var(--ink); cursor: pointer; }
+  .seg button.on { border-color: currentColor; }
+  .seg button.rest.on { background: var(--shade); } .seg button.hol { color: var(--ok); } .seg button.hol.on { background: var(--ok-soft); }
+  .seg button.sick { color: var(--danger); } .seg button.sick.on { background: var(--danger-soft); }
+  .p0 { background: var(--p0s); color: var(--p0); } .p1 { background: var(--p1s); color: var(--p1); }
+  .p2 { background: var(--p2s); color: var(--p2); } .p3 { background: var(--p3s); color: var(--p3); }
+  .p4 { background: var(--p4s); color: var(--p4); } .p5 { background: var(--p5s); color: var(--p5); }
+  .legend { margin-top: 8px; font-size: 13px; }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .choice { border: 2px solid transparent; border-radius: 12px; padding: 14px 10px; font: inherit; font-weight: 600; cursor: pointer; }
+  .choice.on { border-color: currentColor; }
+  .choice.off { background: var(--shade); color: var(--muted); }
+  .choice.hol { background: var(--ok-soft); color: var(--ok); }
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .list li:last-child { border-bottom: none; }
+  .big { font-size: 34px; font-weight: 700; color: var(--accent); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; }
+  .stats div { background: var(--shade); border-radius: 12px; padding: 10px 6px; }
+  .stats b { display: block; font-size: 24px; color: var(--accent); }
+  table.simple { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.simple th, table.simple td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+  table.simple td.num, table.simple th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.paytable { font-size: 13px; } table.paytable th, table.paytable td { padding: 7px 3px; } table.paytable td .small { font-size: 12px; }
+  .myweek li { display: flex; gap: 12px; align-items: center; }
+  .myweek .d { width: 92px; color: var(--muted); font-size: 15px; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
+  .modal[hidden] { display: none; }
+  .sheet { background: var(--card); width: 100%; max-width: 520px; border-radius: 18px 18px 0 0; padding: 18px 16px calc(env(safe-area-inset-bottom) + 18px); max-height: 90vh; overflow-y: auto; }
+  @media (min-width: 640px) { .modal { align-items: center; } .sheet { border-radius: 18px; } }
+  .login { max-width: 400px; margin: 40px auto; }
+  .demo { background: var(--warn-soft); color: var(--warn-ink); text-align: center; font-size: 14px; padding: 6px; }
+</style>
+</head>
+<body>
+<div id="demoBar" class="demo" hidden>Demo with made-up people and pay. Nothing here is saved.</div>
+<header>
+  <a id="backBtn" class="hbtn" href="rota.html" hidden>‹ Rota</a>
+  <h1>Payroll</h1>
+  <span class="who" id="who"></span>
+  <button id="outBtn" hidden>Sign out</button>
+</header>
+<main id="app"><p class="muted">Loading…</p></main>
+<div id="modal" class="modal" hidden><div class="sheet" id="sheet"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="payroll-calc.js"></script>
+<script src="payroll.js"></script>
+<script>
+"use strict";
+// Payroll for the shops: only logins listed as payroll admins get past the start (the database checks
+// it too: every payroll table only answers payroll admins). Staff see their payslips in the rota app.
+const SUPABASE_URL = "https://hgoknavmxkaoolozzwkc.supabase.co";
+const SUPABASE_KEY = "sb_publishable_W7wlg7ZG_k_gYwbj1WcqCA_3JzDF_K3";
+const params = new URLSearchParams(location.search);
+const DEMO = params.get("demo") === "admin" ? "admin" : null;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const num = (n) => (Math.round(n * 10) / 10).toString();
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const parse = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+const monday = (s) => { const d = parse(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); };
+const fmt = (s, o) => parse(s).toLocaleDateString("en-GB", o);
+const TODAY = iso(new Date());
+
+// What payroll.js needs from the rota: people, bank holidays and closures, leave, extra days.
+const S = { people: [], closures: [], leave: [], extras: [], me: null };
+
+// Where "back" goes: the rota and sales pages open this with ?from=rota or ?from=sales.
+const from = params.get("from") === "sales" ? "sales" : params.get("from") === "rota" ? "rota" : null;
+if (from) sessionStorage.setItem("payrollFrom", from);
+const back = sessionStorage.getItem("payrollFrom");
+if (back) {
+  $("backBtn").hidden = false;
+  $("backBtn").textContent = back === "sales" ? "‹ Sales" : "‹ Rota";
+  $("backBtn").href = (back === "sales" ? "index.html" : "rota.html") + (DEMO ? "?demo=admin" : "");
+}
+
+function supaApi() {
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const must = (r) => { if (r.error) throw new Error(r.error.message); return r.data; };
+  const paged = async (q) => { const out = []; for (let i = 0; ; i += 1000) { const rows = must(await q().range(i, i + 999)); out.push(...rows); if (rows.length < 1000) return out; } };
+  return {
+    db,
+    async session() { return (await db.auth.getSession()).data.session; },
+    async signIn(email, password) { must(await db.auth.signInWithPassword({ email, password })); },
+    async signOut() { await db.auth.signOut(); },
+    async loadRota() {
+      const cut = `${Number(TODAY.slice(0, 4)) - 1}-01-01`;
+      const [people, closures, leave, extras] = await Promise.all([
+        db.from("rota_people").select("*").order("sort").order("name"),
+        db.from("rota_closures").select("*").order("day"),
+        paged(() => db.from("rota_leave").select("*").gte("last_day", cut).order("first_day").order("id")),
+        db.from("rota_extra_days").select("*"),
+      ]);
+      return { people: must(people), closures: must(closures), leave, extras: must(extras) };
+    },
+    async shifts(a, b) { return paged(() => db.from("rota_shifts").select("person_id, day, place_id").gte("day", a).lte("day", b).order("day")); },
+    ...payrollSupa(db, must),
+  };
+}
+
+function demoApi() {
+  const rota = payrollDemoRota();
+  const me = rota.people[0];
+  return {
+    async session() { return { user: { id: "u-owner", email: "owner@example.com" } }; },
+    async signIn() {}, async signOut() { location.reload(); },
+    async loadRota() { return { people: rota.people, closures: rota.closures, leave: rota.leave, extras: rota.extras }; },
+    async shifts(a, b) { return rota.shifts(a, b); },
+    ...payrollDemo(rota.people, me),
+  };
+}
+const api = DEMO ? demoApi() : supaApi();
+if (DEMO) $("demoBar").hidden = false;
+
+function openSheet(html) {
+  $("sheet").innerHTML = html;
+  $("modal").hidden = false;
+  $("sheet").querySelectorAll("[data-close]").forEach((b) => (b.onclick = closeSheet));
+}
+function closeSheet() { $("modal").hidden = true; $("sheet").innerHTML = ""; }
+$("modal").onclick = (e) => { if (e.target === $("modal")) closeSheet(); };
+
+function showSignIn(message) {
+  $("outBtn").hidden = true; $("who").textContent = "";
+  $("app").innerHTML = `<div class="card login"><h2>Sign in to payroll</h2>
+    <label>Email</label><input type="email" id="email" autocomplete="username">
+    <label>Password</label><input type="password" id="password" autocomplete="current-password">
+    <div class="msg bad" id="loginMsg" ${message ? "" : "hidden"}>${esc(message)}</div>
+    <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn" id="signIn">Sign in</button></div></div>`;
+  const go = async () => {
+    try { await api.signIn($("email").value.trim(), $("password").value); await start(); }
+    catch { showSignIn("That email and password weren't accepted."); }
+  };
+  $("signIn").onclick = go;
+  $("password").onkeydown = (e) => { if (e.key === "Enter") go(); };
+}
+
+async function start() {
+  try {
+    const session = await api.session();
+    if (!session) return showSignIn();
+    $("who").textContent = session.user.email.split("@")[0];
+    $("outBtn").hidden = false;
+    if (!(await api.payIsAdmin())) {
+      $("app").innerHTML = `<div class="card login"><h2>Not a payroll login</h2><p>You're signed in as ${esc(session.user.email)}, which can't run payroll. Payslips are on the Payslips tab in the Rota app.</p><a class="btn" style="text-decoration:none;display:inline-block" href="rota.html">Go to the Rota</a></div>`;
+      return;
+    }
+    S.me = { email: session.user.email };
+    Object.assign(S, await api.loadRota());
+    await renderPayroll();
+  } catch (e) {
+    $("app").innerHTML = `<div class="card"><h2>Couldn't load payroll</h2><p class="muted">${esc(e.message)}</p><button class="btn" onclick="location.reload()">Try again</button></div>`;
+  }
+}
+$("outBtn").onclick = async () => { if (!confirm("Sign out? (This signs you out of the rota and sales pages on this device too.)")) return; await api.signOut(); location.reload(); };
+start();
+</script>
+</body>
+</html>
