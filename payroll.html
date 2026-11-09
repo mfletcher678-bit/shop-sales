@@ -193,8 +193,14 @@ function supaApi() {
     async session() { return (await db.auth.getSession()).data.session; },
     async signIn(email, password) { must(await db.auth.signInWithPassword({ email, password })); },
     async signOut() { await db.auth.signOut(); },
+    // Full admins (every employer, the tax rates) or just some employers' payroll, like Emily's.
+    async payIsFull() { const r = await db.rpc("payroll_is_full_admin"); return r.error ? true : r.data === true; },
     async loadRota() {
       const cut = `${Number(TODAY.slice(0, 4)) - 1}-01-01`;
+      // Only the people this login runs payroll for (Emily isn't on the rota, so the rota tables
+      // wouldn't answer her). Falls back to the rota tables until that database function exists.
+      const r = await db.rpc("payroll_rota", { p_from: cut });
+      if (!r.error) return r.data;
       const [people, closures, leave, extras] = await Promise.all([
         db.from("rota_people").select("*").order("sort").order("name"),
         db.from("rota_closures").select("*").order("day"),
@@ -203,7 +209,11 @@ function supaApi() {
       ]);
       return { people: must(people), closures: must(closures), leave, extras: must(extras) };
     },
-    async shifts(a, b) { return paged(() => db.from("rota_shifts").select("person_id, day, place_id").gte("day", a).lte("day", b).order("day")); },
+    async shifts(a, b) {
+      const r = await db.rpc("payroll_shifts", { p_from: a, p_to: b });
+      if (!r.error) return r.data;
+      return paged(() => db.from("rota_shifts").select("person_id, day, place_id").gte("day", a).lte("day", b).order("day"));
+    },
     ...payrollSupa(db, must),
   };
 }
@@ -214,6 +224,7 @@ function demoApi() {
   return {
     async session() { return { user: { id: "u-owner", email: "owner@example.com" } }; },
     async signIn() {}, async signOut() { location.reload(); },
+    async payIsFull() { return true; },
     async loadRota() { return { people: rota.people, closures: rota.closures, leave: rota.leave, extras: rota.extras }; },
     async shifts(a, b) { return rota.shifts(a, b); },
     ...payrollDemo(rota.people, me),
@@ -256,6 +267,7 @@ async function start() {
       return;
     }
     S.me = { email: session.user.email };
+    S.payFull = await api.payIsFull();
     Object.assign(S, await api.loadRota());
     await renderPayroll();
   } catch (e) {

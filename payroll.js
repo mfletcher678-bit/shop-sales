@@ -166,7 +166,7 @@ const payLines = (runId) => PAY.lines.filter((l) => l.run_id === runId);
 async function payLoad() {
   Object.assign(PAY, await api.payLoad(), { loaded: true });
   // First time: the 2026/27 rates go in from payroll-calc.js, so the figures live in one place.
-  if (!PAY.taxYears.some((t) => t.tax_year === "2026-27")) {
+  if (S.payFull !== false && !PAY.taxYears.some((t) => t.tax_year === "2026-27")) {
     const rates = JSON.parse(JSON.stringify(PC.RATES_2026_27));
     await api.paySaveTaxYear("2026-27", rates);
     PAY.taxYears.push({ tax_year: "2026-27", rates });
@@ -727,6 +727,7 @@ const RATE_LABELS = {
 };
 function payRatesView() {
   const years = PAY.taxYears.map((t) => t.tax_year).sort().reverse();
+  if (!years.length) { $("payBody").innerHTML = `<div class="card muted">No tax rates yet: they're added the first time Michael opens Payroll.</div>`; return; }
   PAY.rateYear = PAY.rateYear && years.includes(PAY.rateYear) ? PAY.rateYear : years[0];
   const rates = JSON.parse(JSON.stringify(payRates(PAY.rateYear)));
   const leaf = (path, v) => `<input data-rp="${path}" value="${esc(v)}" ${typeof v === "number" ? `type="number" step="any"` : ""}>`;
@@ -740,7 +741,7 @@ function payRatesView() {
     <p class="small muted">Each April, check GOV.UK "Rates and thresholds for employers" and type the new year's figures in. Pay runs use the rates for the tax year their payday falls in.</p>
     <div class="grid2">${walk(rates, "")}</div>
     <div class="msg bad" id="ryErr" hidden></div>
-    <div class="row" style="margin-top:12px"><button class="btn ghost" id="ryNext">Start next tax year from these</button><span class="spacer"></span><button class="btn" id="rySave">Save ${esc(PAY.rateYear)}</button></div></div>`;
+    ${S.payFull === false ? `<p class="small muted">Michael keeps these up to date each April.</p></div>` : `<div class="row" style="margin-top:12px"><button class="btn ghost" id="ryNext">Start next tax year from these</button><span class="spacer"></span><button class="btn" id="rySave">Save ${esc(PAY.rateYear)}</button></div></div>`}`;
   $("ryPick").onchange = () => { PAY.rateYear = $("ryPick").value; payRatesView(); };
   const collect = () => {
     const out = JSON.parse(JSON.stringify(rates));
@@ -754,6 +755,7 @@ function payRatesView() {
     out.ni.employee = t.employee; out.ni.employer = t.employer;
     return out;
   };
+  if (!$("rySave")) return;
   $("rySave").onclick = async () => {
     try { const r = collect(); await api.paySaveTaxYear(PAY.rateYear, r); PAY.taxYears.find((t) => t.tax_year === PAY.rateYear).rates = r; $("ryErr").hidden = false; $("ryErr").className = "msg good"; $("ryErr").textContent = "Saved."; }
     catch (e) { $("ryErr").hidden = false; $("ryErr").className = "msg bad"; $("ryErr").textContent = "Couldn't save: " + e.message; }
