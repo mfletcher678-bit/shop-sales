@@ -3,7 +3,7 @@
   "name": "Fitness Log",
   "short_name": "Fitness",
   "start_url": "fitness.html",
-  "scope": "./",
+  "scope": "fitness.html",
   "display": "standalone",
   "background_color": "#F4F2EE",
   "theme_color": "#1C1B19",
