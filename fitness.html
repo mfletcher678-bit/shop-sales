@@ -498,6 +498,8 @@ document.addEventListener("visibilitychange", async ()=>{
   try { await loadAll(); render(); } catch(e){ setStatus("Offline"); }
 });
 start();
+// Same no-cache service worker as the sales and rota pages; it lets Chrome offer "Install app".
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 window.addEventListener("resize", ()=>{ if(S.tab==="progress") drawChart(); });
 })();
 </script>
